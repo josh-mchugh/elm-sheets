@@ -6,6 +6,7 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (..)
+import Html.Attributes exposing (..)
 
 
 -- MAIN
@@ -51,4 +52,18 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    text "Hello World!"
+    div [ class "content" ]
+        [ div [ class "sheet"]
+              ( List.map viewSimpleDiv (List.range 0 100)  )
+        ]
+
+viewSimpleDiv : Int -> Html Msg
+viewSimpleDiv value =
+    let
+        displayValue =
+            "div #" ++ String.fromInt value
+    in
+    div [] [ text displayValue ]
+
+
+

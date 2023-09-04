@@ -1,0 +1,31 @@
+@import 'sanitize.css';
+@import 'sanitize.css/forms.css';
+@import 'sanitize.css/typography.css';
+
+.content {
+    margin: 0;
+    padding-top: 30px;
+    width: 100%;
+    height: 100vh;
+}
+
+.sheet {
+    width: 210mm;
+    height: 296mm;
+    margin: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+    page-break-after: always;
+}
+
+@media screen {
+    .content {
+        background: #e0e0e0;
+    }
+
+    .sheet {
+        background: white;
+        background-shadow: 0 0.5mm 2mm rgba(0, 0, 0, .3);
+        margin: 0 auto;
+    }
+}
