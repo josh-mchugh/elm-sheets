@@ -4,25 +4,26 @@
 
 .app {
     display: flex;
+    flex-wrap: wrap;
     height: 100vh;
 }
 
 .sidebar {
-    width: 250px;
-    margin: 20px 0 0 15px;
+    width: calc(100% / 3);
+    border-right: 1px solid black;
 }
 
 .content {
     margin: 0;
-    padding-top: 40px;
-    width: 100%;
+    padding: 2rem 0 0 0;
+    width: calc(100% / 3 * 2);
     height: 100%;
+    overflow-y: scroll;
 }
 
 .sheet {
     width: 210mm;
     height: 296mm;
-    margin: 0;
     overflow: hidden;
     box-sizing: border-box;
     page-break-after: always;
@@ -36,7 +37,7 @@
     .sheet {
         background: white;
         background-shadow: 0 0.5mm 2mm rgba(0, 0, 0, .3);
-        margin: 0 auto;
+        margin: 0 auto 3rem auto;;
     }
 }
 
