@@ -55,7 +55,6 @@ init _ =
 type Msg
     = AddSheet
     | AddItem
-    | GetViewportClicked
     | GotViewport (Result Error Viewport)
     | OnMouseOverItem Int
     | GotElement (Result Error Element)
@@ -77,9 +76,6 @@ update msg model =
             ( { model | items = model.items ++ [ List.length model.items + 1 ] }
             , Cmd.none
             )
-
-        GetViewportClicked ->
-            ( model, Task.attempt GotViewport (Browser.Dom.getViewportOf "sheet1") )
 
         GotViewport result ->
             case result of
@@ -108,19 +104,29 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div [ class "app" ]
-        [ div [ class "sidebar" ]
-            [ button [ onClick AddSheet ]
-                [ text "Add Sheet" ]
-            , button [ onClick GetViewportClicked ]
-                [ text "Sheet Viewport" ]
-            , viewViewportInfo model.viewport
-            , button [ onClick AddItem ]
-                [ text "Add Item" ]
-            , viewElementInfo model.element
-            ]
-        , div [ class "content" ]
-            (List.map (viewSheet model.items) model.sheets)
+        [ viewSidebar model
+        , viewContent model
         ]
+
+
+viewSidebar : Model -> Html Msg
+viewSidebar model =
+    div [ class "sidebar" ]
+        [ div [ class "actions" ]
+              [ button [ onClick AddSheet ]
+                    [ text "Add Sheet" ]
+              , button [ onClick AddItem ]
+                  [ text "Add Item" ]
+              ]
+        , viewViewportInfo model.viewport
+        , viewElementInfo model.element
+        ]
+
+
+viewContent : Model -> Html Msg
+viewContent model =
+    div [ class "content" ]
+        (List.map (viewSheet model.items) model.sheets)
 
 
 viewSheet : List Int -> Int -> Html Msg
@@ -183,7 +189,7 @@ viewSimpleDiv : Int -> Html Msg
 viewSimpleDiv value =
     let
         displayValue =
-            "div #" ++ String.fromInt value
+            "item #" ++ String.fromInt value
 
         itemId =
             "item" ++ String.fromInt value
