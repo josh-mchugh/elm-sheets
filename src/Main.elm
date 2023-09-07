@@ -30,10 +30,28 @@ main =
 
 
 type alias Model =
-    { sheets : List Int
-    , items : List Int
-    , viewport : Maybe Viewport
-    , element : Maybe Element
+    { sheets : List Sheet
+    , items : List Item
+    }
+
+
+type alias Bounds =
+    { top: Float
+    , left: Float
+    , bottom: Float
+    , right: Float
+    }
+
+
+type alias Sheet =
+    { id : Int
+    , bounds : Maybe Bounds
+    }
+
+
+type alias Item =
+    { id : Int
+    , bounds: Maybe Bounds
     }
 
 
@@ -41,8 +59,6 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { sheets = []
       , items = []
-      , viewport = Nothing
-      , element = Nothing
       }
     , Cmd.none
     )
@@ -54,10 +70,9 @@ init _ =
 
 type Msg
     = AddSheet
+    | UpdateSheetBounds Int (Result Error Element)
     | AddItem
-    | GotViewport (Result Error Viewport)
-    | OnMouseOverItem Int
-    | GotElement (Result Error Element)
+    | UpdateItemBounds Int (Result Error Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -67,35 +82,80 @@ update msg model =
             let
                 nextSheetId =
                     List.length model.sheets + 1
+
+                nextSheet =
+                    { id = nextSheetId, bounds = Nothing }
+
+                elementId =
+                    "sheet" ++ String.fromInt nextSheetId
             in
-            ( { model | sheets = model.sheets ++ [ nextSheetId ] }
-            , Task.attempt GotViewport (Browser.Dom.getViewportOf ("sheet" ++ String.fromInt nextSheetId))
+            ( { model |
+                    sheets = model.sheets ++ [ nextSheet ]
+              }
+            , Task.attempt (UpdateSheetBounds nextSheetId) (Browser.Dom.getElement elementId)
             )
 
-        AddItem ->
-            ( { model | items = model.items ++ [ List.length model.items + 1 ] }
-            , Cmd.none
-            )
-
-        GotViewport result ->
-            case result of
-                Ok viewport ->
-                    ( { model | viewport = Just viewport }, Cmd.none )
-
-                Err error ->
-                    ( { model | viewport = Nothing }, Cmd.none )
-
-        OnMouseOverItem value ->
-            ( model, Task.attempt GotElement (Browser.Dom.getElement ("item" ++ String.fromInt value)) )
-
-        GotElement result ->
+        UpdateSheetBounds id result ->
             case result of
                 Ok element ->
-                    ( { model | element = Just element }, Cmd.none )
+                    let
+                        updateSheet sheet =
+                            if sheet.id == id then
+                                { sheet | bounds = Just
+                                      <| createBounds element
+                                }
+                            else
+                                sheet
+                    in
+                    ( { model | sheets = List.map updateSheet model.sheets }
+                    , Cmd.none
+                    )
 
                 Err error ->
-                    ( { model | element = Nothing }, Cmd.none )
+                    ( model, Cmd.none )
 
+        AddItem ->
+            let
+                nextItemId =
+                    List.length model.items + 1
+
+                nextItem =
+                    { id = nextItemId, bounds = Nothing }
+
+                elementId =
+                    ("item" ++ String.fromInt nextItemId)
+            in
+            ( { model | items = model.items ++ [ nextItem ] }
+            , Task.attempt (UpdateItemBounds nextItemId)  (Browser.Dom.getElement elementId)
+            )
+
+        UpdateItemBounds id result ->
+            case result of
+                Ok element ->
+                    let
+                        updateItem item =
+                            if item.id == id then
+                                { item | bounds = Just
+                                      <| createBounds element
+                                }
+                            else
+                                item
+                    in
+                    ( { model | items = List.map updateItem model.items }
+                    , Cmd.none
+                    )
+
+                Err error ->
+                    ( model, Cmd.none )
+
+
+createBounds : Element -> Bounds
+createBounds element =
+    { top = element.element.y
+    , left = element.element.x
+    , bottom = element.element.y + element.element.height
+    , right = element.element.x + element.element.width
+    }
 
 
 -- VIEW
@@ -118,8 +178,6 @@ viewSidebar model =
               , button [ onClick AddItem ]
                   [ text "Add Item" ]
               ]
-        , viewViewportInfo model.viewport
-        , viewElementInfo model.element
         ]
 
 
@@ -129,70 +187,20 @@ viewContent model =
         (List.map (viewSheet model.items) model.sheets)
 
 
-viewSheet : List Int -> Int -> Html Msg
+viewSheet : List Item -> Sheet -> Html Msg
 viewSheet items sheet =
-    div [ id ("sheet" ++ String.fromInt sheet), class "sheet" ]
+    div [ id ("sheet" ++ String.fromInt sheet.id), class "sheet" ]
         (List.map viewSimpleDiv items)
 
 
-viewViewportInfo : Maybe Viewport -> Html Msg
-viewViewportInfo maybeViewport =
+viewSimpleDiv : Item -> Html Msg
+viewSimpleDiv item =
     let
         displayValue =
-            case maybeViewport of
-                Just viewport ->
-                    "x: "
-                        ++ String.fromFloat viewport.viewport.x
-                        ++ ", "
-                        ++ "y: "
-                        ++ String.fromFloat viewport.viewport.y
-                        ++ ", "
-                        ++ "width: "
-                        ++ String.fromFloat viewport.viewport.width
-                        ++ ", "
-                        ++ "height: "
-                        ++ String.fromFloat viewport.viewport.height
-
-                Nothing ->
-                    ""
-    in
-    div []
-        [ text displayValue ]
-
-
-viewElementInfo : Maybe Element -> Html Msg
-viewElementInfo maybeElement =
-    let
-        displayValue =
-            case maybeElement of
-                Just element ->
-                    "x: "
-                        ++ String.fromFloat element.element.x
-                        ++ ", "
-                        ++ "y: "
-                        ++ String.fromFloat element.element.y
-                        ++ ", "
-                        ++ "width: "
-                        ++ String.fromFloat element.element.width
-                        ++ ", "
-                        ++ "height: "
-                        ++ String.fromFloat element.element.height
-
-                Nothing ->
-                    ""
-    in
-    div []
-        [ text displayValue ]
-
-
-viewSimpleDiv : Int -> Html Msg
-viewSimpleDiv value =
-    let
-        displayValue =
-            "item #" ++ String.fromInt value
+            "item #" ++ String.fromInt item.id
 
         itemId =
-            "item" ++ String.fromInt value
+            "item" ++ String.fromInt item.id
     in
-    div [ id itemId, class "item", onMouseOver (OnMouseOverItem value) ]
+    div [ id itemId, class "item" ]
         [ text displayValue ]
