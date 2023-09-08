@@ -4,10 +4,10 @@ module Main exposing (main)
 -}
 
 import Browser
-import Browser.Dom exposing (Element, Error, Viewport)
+import Browser.Dom exposing (Element, Error)
 import Html exposing (Html, button, div, text)
-import Html.Attributes exposing (class, id)
-import Html.Events exposing (onClick, onMouseOver)
+import Html.Attributes exposing (class, id, style)
+import Html.Events exposing (onClick)
 import Task
 
 
@@ -32,6 +32,7 @@ main =
 type alias Model =
     { sheets : List Sheet
     , items : List Item
+    , exceedsBounds : Bool
     }
 
 
@@ -51,16 +52,17 @@ type alias Sheet =
 
 type alias Item =
     { id : Int
-    , bounds: Maybe Bounds
+    , bounds : Maybe Bounds
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { sheets = []
+    ( { sheets = [ Sheet 1 Nothing ]
       , items = []
+      , exceedsBounds = False
       }
-    , Cmd.none
+    , Task.attempt (UpdateSheetBounds 1)  (Browser.Dom.getElement "sheet1")
     )
 
 
@@ -69,30 +71,28 @@ init _ =
 
 
 type Msg
-    = AddSheet
-    | UpdateSheetBounds Int (Result Error Element)
-    | AddItem
+    = AddItem
     | UpdateItemBounds Int (Result Error Element)
+    | UpdateSheetBounds Int (Result Error Element)
+    | CheckSheetBounds (Result Error Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AddSheet ->
-            let
-                nextSheetId =
-                    List.length model.sheets + 1
+        AddItem ->
+            let 
+                nextItemId =
+                    List.length model.items + 1
 
-                nextSheet =
-                    { id = nextSheetId, bounds = Nothing }
+                nextItem =
+                    { id = nextItemId, bounds = Nothing }
 
                 elementId =
-                    "sheet" ++ String.fromInt nextSheetId
+                    ("item" ++ String.fromInt nextItemId)
             in
-            ( { model |
-                    sheets = model.sheets ++ [ nextSheet ]
-              }
-            , Task.attempt (UpdateSheetBounds nextSheetId) (Browser.Dom.getElement elementId)
+            ( { model | items = model.items ++ [ nextItem ] }
+            , Task.attempt (UpdateItemBounds nextItemId)  (Browser.Dom.getElement elementId)
             )
 
         UpdateSheetBounds id result ->
@@ -114,21 +114,6 @@ update msg model =
                 Err error ->
                     ( model, Cmd.none )
 
-        AddItem ->
-            let
-                nextItemId =
-                    List.length model.items + 1
-
-                nextItem =
-                    { id = nextItemId, bounds = Nothing }
-
-                elementId =
-                    ("item" ++ String.fromInt nextItemId)
-            in
-            ( { model | items = model.items ++ [ nextItem ] }
-            , Task.attempt (UpdateItemBounds nextItemId)  (Browser.Dom.getElement elementId)
-            )
-
         UpdateItemBounds id result ->
             case result of
                 Ok element ->
@@ -142,11 +127,40 @@ update msg model =
                                 item
                     in
                     ( { model | items = List.map updateItem model.items }
-                    , Cmd.none
+                    , Task.attempt CheckSheetBounds (Browser.Dom.getElement "sheetContainer")
                     )
 
                 Err error ->
                     ( model, Cmd.none )
+
+        CheckSheetBounds result ->
+            case result of
+                Ok element ->
+                    let
+                        maybeSheet =
+                            List.head model.sheets
+
+                        bottom =
+                            element.element.y + element.element.height
+
+                        exceedsBottom =
+                            case maybeSheet of
+                                Just sheet ->
+                                    case sheet.bounds of
+                                        Just bounds ->
+                                            bottom > bounds.bottom
+                                        Nothing ->
+                                            False
+                                Nothing ->
+                                    False
+                            
+                    in
+                    ( { model | exceedsBounds = exceedsBottom }
+                    , Cmd.none
+                    )
+                    
+                Err error ->
+                    ( model, Cmd.none)
 
 
 createBounds : Element -> Bounds
@@ -173,9 +187,7 @@ viewSidebar : Model -> Html Msg
 viewSidebar model =
     div [ class "sidebar" ]
         [ div [ class "actions" ]
-              [ button [ onClick AddSheet ]
-                    [ text "Add Sheet" ]
-              , button [ onClick AddItem ]
+              [ button [ onClick AddItem ]
                   [ text "Add Item" ]
               ]
         ]
@@ -190,7 +202,9 @@ viewContent model =
 viewSheet : List Item -> Sheet -> Html Msg
 viewSheet items sheet =
     div [ id ("sheet" ++ String.fromInt sheet.id), class "sheet" ]
-        (List.map viewSimpleDiv items)
+        [ div [ id "sheetContainer", style "height" "auto" ]
+              (List.map viewSimpleDiv items)
+        ]
 
 
 viewSimpleDiv : Item -> Html Msg
