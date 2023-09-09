@@ -31,13 +31,12 @@ main =
 
 
 type alias Model =
-    { sheets : List Sheet
-    , rows : Array Row
-    , exceedsBounds : Bool
+    { sheets : Array Sheet
+     , rows : Array Row
     }
 
 
-type alias Row =
+type alias Sheet =
     { bounds : Maybe Bounds }
 
 
@@ -49,19 +48,17 @@ type alias Bounds =
     }
 
 
-type alias Sheet =
-    { id : Int
-    , bounds : Maybe Bounds
+type alias Row =
+    { bounds : Maybe Bounds
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { sheets = [ Sheet 1 Nothing ]
+    ( { sheets = Array.fromList [ Sheet Nothing ]
       , rows = Array.fromList []
-      , exceedsBounds = False
       }
-    , Task.attempt (UpdateSheetBounds 1)  (Browser.Dom.getElement "sheet1")
+    , Task.attempt (UpdateSheetBounds 0)  (Browser.Dom.getElement "sheet0")
     )
 
 
@@ -72,7 +69,6 @@ init _ =
 type Msg
     = AddRow
     | UpdateSheetBounds Int (Result Error Element)
-    | CheckSheetBounds (Result Error Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -83,53 +79,19 @@ update msg model =
             , Cmd.none
             )
 
-        UpdateSheetBounds id result ->
+        UpdateSheetBounds index result ->
             case result of
                 Ok element ->
-                    let
-                        updateSheet sheet =
-                            if sheet.id == id then
-                                { sheet | bounds = Just
-                                      <| createBounds element
-                                }
-                            else
-                                sheet
-                    in
-                    ( { model | sheets = List.map updateSheet model.sheets }
-                    , Cmd.none
-                    )
+                    case (Array.get index model.sheets) of
+                        Just sheet ->
+                            ( { model | sheets = Array.set index { sheet | bounds = Just (createBounds element) } model.sheets }
+                            , Cmd.none
+                            )
+                        Nothing ->
+                            ( model, Cmd.none )
 
                 Err error ->
                     ( model, Cmd.none )
-
-        CheckSheetBounds result ->
-            case result of
-                Ok element ->
-                    let
-                        maybeSheet =
-                            List.head model.sheets
-
-                        bottom =
-                            element.element.y + element.element.height
-
-                        exceedsBottom =
-                            case maybeSheet of
-                                Just sheet ->
-                                    case sheet.bounds of
-                                        Just bounds ->
-                                            bottom > bounds.bottom
-                                        Nothing ->
-                                            False
-                                Nothing ->
-                                    False
-                            
-                    in
-                    ( { model | exceedsBounds = exceedsBottom }
-                    , Cmd.none
-                    )
-                    
-                Err error ->
-                    ( model, Cmd.none)
 
 
 createBounds : Element -> Bounds
@@ -165,16 +127,30 @@ viewSidebar model =
 viewContent : Model -> Html Msg
 viewContent model =
     div [ class "content" ]
-        (List.map (viewSheet model.rows) model.sheets)
+        (List.map (viewSheet model.rows) (Array.toIndexedList model.sheets))
 
 
-viewSheet : Array Row -> Sheet -> Html Msg
-viewSheet rows sheet =
-    div [ id ("sheet" ++ String.fromInt sheet.id), class "sheet" ]
+viewSheet : Array Row -> (Int, Sheet) -> Html Msg
+viewSheet rows sheetTuple =
+    let
+        index =
+            Tuple.first sheetTuple
+
+        sheet =
+            Tuple.second sheetTuple
+    in
+    div [ id ("sheet" ++ String.fromInt index), class "sheet" ]
         [ div [ id "sheetContainer", style "height" "auto" ]
               (List.map viewRow (Array.toList rows))
         ]
 
+
 viewRow : Row -> Html Msg
 viewRow row =
     div [] [ text "" ]
+
+
+
+
+
+
