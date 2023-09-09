@@ -3,6 +3,7 @@ module Main exposing (main)
 {-| Elm Sheets application
 -}
 
+import Array exposing (Array)
 import Browser
 import Browser.Dom exposing (Element, Error)
 import Html exposing (Html, button, div, text)
@@ -31,9 +32,13 @@ main =
 
 type alias Model =
     { sheets : List Sheet
-    , items : List Item
+    , rows : Array Row
     , exceedsBounds : Bool
     }
+
+
+type alias Row =
+    { bounds : Maybe Bounds }
 
 
 type alias Bounds =
@@ -50,16 +55,10 @@ type alias Sheet =
     }
 
 
-type alias Item =
-    { id : Int
-    , bounds : Maybe Bounds
-    }
-
-
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { sheets = [ Sheet 1 Nothing ]
-      , items = []
+      , rows = Array.fromList []
       , exceedsBounds = False
       }
     , Task.attempt (UpdateSheetBounds 1)  (Browser.Dom.getElement "sheet1")
@@ -71,8 +70,7 @@ init _ =
 
 
 type Msg
-    = AddItem
-    | UpdateItemBounds Int (Result Error Element)
+    = AddRow
     | UpdateSheetBounds Int (Result Error Element)
     | CheckSheetBounds (Result Error Element)
 
@@ -80,19 +78,9 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AddItem ->
-            let 
-                nextItemId =
-                    List.length model.items + 1
-
-                nextItem =
-                    { id = nextItemId, bounds = Nothing }
-
-                elementId =
-                    ("item" ++ String.fromInt nextItemId)
-            in
-            ( { model | items = model.items ++ [ nextItem ] }
-            , Task.attempt (UpdateItemBounds nextItemId)  (Browser.Dom.getElement elementId)
+        AddRow ->
+            ( { model | rows = Array.push (Row Nothing) model.rows }
+            , Cmd.none
             )
 
         UpdateSheetBounds id result ->
@@ -109,25 +97,6 @@ update msg model =
                     in
                     ( { model | sheets = List.map updateSheet model.sheets }
                     , Cmd.none
-                    )
-
-                Err error ->
-                    ( model, Cmd.none )
-
-        UpdateItemBounds id result ->
-            case result of
-                Ok element ->
-                    let
-                        updateItem item =
-                            if item.id == id then
-                                { item | bounds = Just
-                                      <| createBounds element
-                                }
-                            else
-                                item
-                    in
-                    ( { model | items = List.map updateItem model.items }
-                    , Task.attempt CheckSheetBounds (Browser.Dom.getElement "sheetContainer")
                     )
 
                 Err error ->
@@ -187,8 +156,8 @@ viewSidebar : Model -> Html Msg
 viewSidebar model =
     div [ class "sidebar" ]
         [ div [ class "actions" ]
-              [ button [ onClick AddItem ]
-                  [ text "Add Item" ]
+              [ button [ onClick AddRow ]
+                    [ text "Add Row" ]
               ]
         ]
 
@@ -196,25 +165,16 @@ viewSidebar model =
 viewContent : Model -> Html Msg
 viewContent model =
     div [ class "content" ]
-        (List.map (viewSheet model.items) model.sheets)
+        (List.map (viewSheet model.rows) model.sheets)
 
 
-viewSheet : List Item -> Sheet -> Html Msg
-viewSheet items sheet =
+viewSheet : Array Row -> Sheet -> Html Msg
+viewSheet rows sheet =
     div [ id ("sheet" ++ String.fromInt sheet.id), class "sheet" ]
         [ div [ id "sheetContainer", style "height" "auto" ]
-              (List.map viewSimpleDiv items)
+              (List.map viewRow (Array.toList rows))
         ]
 
-
-viewSimpleDiv : Item -> Html Msg
-viewSimpleDiv item =
-    let
-        displayValue =
-            "item #" ++ String.fromInt item.id
-
-        itemId =
-            "item" ++ String.fromInt item.id
-    in
-    div [ id itemId, class "item" ]
-        [ text displayValue ]
+viewRow : Row -> Html Msg
+viewRow row =
+    div [] [ text "" ]
