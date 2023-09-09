@@ -121,9 +121,28 @@ viewSidebar model =
               [ button [ onClick AddRow ]
                     [ text "Add Row" ]
               ]
+        , div []
+              (List.map viewSidebarRow (Array.toIndexedList model.rows))
         ]
 
 
+viewSidebarRow : (Int, Row) -> Html Msg
+viewSidebarRow rowTuple =
+    let
+        index =
+            Tuple.first rowTuple
+
+        row =
+            Tuple.second rowTuple
+    in
+    div []
+        [ div [] [ text ("Row #" ++ String.fromInt index)]
+        , div []
+            [button [] [ text "Add Column" ]
+            ]
+        ]
+
+        
 viewContent : Model -> Html Msg
 viewContent model =
     div [ class "content" ]
@@ -148,9 +167,3 @@ viewSheet rows sheetTuple =
 viewRow : Row -> Html Msg
 viewRow row =
     div [] [ text "" ]
-
-
-
-
-
-
