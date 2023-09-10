@@ -55,6 +55,12 @@ type alias Row =
 
 
 type alias Column =
+    { bounds : Maybe Bounds
+    , sections : Array Section
+    }
+
+
+type alias Section =
     { bounds : Maybe Bounds }
 
 
@@ -81,6 +87,13 @@ emptyRow =
 
 emptyColumn : Column
 emptyColumn =
+    { bounds = Nothing
+    , sections = Array.fromList []
+    }
+
+
+emptySection : Section
+emptySection =
     { bounds = Nothing }
 
 
@@ -90,6 +103,7 @@ emptyColumn =
 type Msg
     = AddRow
     | AddColumn Int
+    | AddSection Int Int
     | UpdateSheetBounds Int (Result Error Element)
 
 
@@ -107,6 +121,25 @@ update msg model =
                     ( { model | rows = Array.set index { row | columns =  Array.push emptyColumn row.columns } model.rows }
                     , Cmd.none
                     )
+                Nothing ->
+                    ( model, Cmd.none )
+
+        AddSection rowIndex columnIndex ->
+            let
+                updateColumn column =
+                    { column | sections = Array.push emptySection column.sections }
+            in
+            case (Array.get rowIndex model.rows) of
+                Just row ->
+                    case (Array.get columnIndex row.columns) of
+                        Just column ->
+                            ( { model | rows = Array.set rowIndex { row | columns = Array.set columnIndex (updateColumn column) row.columns } model.rows }
+                            , Cmd.none
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
                 Nothing ->
                     ( model, Cmd.none )
 
@@ -176,27 +209,43 @@ viewSidebarRow rowTuple =
               ]
         , div []
             [ div [ ]
-                  (List.map viewSidebarColumn (Array.toIndexedList row.columns))
+                  (List.map (viewSidebarColumn index) (Array.toIndexedList row.columns))
             ]
         ]
 
 
-viewSidebarColumn : (Int, Column) -> Html Msg
-viewSidebarColumn columnTuple =
+viewSidebarColumn : Int -> (Int, Column) -> Html Msg
+viewSidebarColumn rowIndex columnTuple =
     let
         index =
             Tuple.first columnTuple
+
+        column =
+            Tuple.second columnTuple
     in
     div [ class "column" ]
         [ div [ class "header" ]
               [ div []
                     [ text ("Column #" ++ String.fromInt index) ]
               , div []
-                  [ button []
+                  [ button [ onClick (AddSection rowIndex index) ]
                         [ text "Add Section" ]
                   ]
               ]
+        , div []
+            (List.map (viewSidebarSection rowIndex index) (Array.toIndexedList column.sections))
         ]
+
+
+viewSidebarSection : Int -> Int -> (Int, Section) -> Html Msg
+viewSidebarSection rowIndex columnIndex sectionTuple =
+    let
+        index =
+            Tuple.first sectionTuple
+    in
+    div []
+        [ text ("Section #" ++ String.fromInt index)]
+
 
 viewContent : Model -> Html Msg
 viewContent model =
@@ -218,4 +267,21 @@ viewSheet rows sheetTuple =
 
 viewRow : Row -> Html Msg
 viewRow row =
-    div [] [ text "" ]
+    div [ class "row" ]
+        (List.map viewColumn (Array.toList row.columns))
+
+
+viewColumn : Column -> Html Msg
+viewColumn column =
+    div []
+        (List.map viewSection (Array.toIndexedList column.sections))
+
+
+viewSection : (Int, Section) -> Html Msg
+viewSection sectionTuple =
+    let
+        index =
+            Tuple.first sectionTuple
+    in
+    div []
+        [ text ("Section #" ++ String.fromInt index) ]
