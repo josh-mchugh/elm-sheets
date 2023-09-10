@@ -50,17 +50,38 @@ type alias Bounds =
 
 type alias Row =
     { bounds : Maybe Bounds
+    , columns : Array Column
     }
+
+
+type alias Column =
+    { bounds : Maybe Bounds }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { sheets = Array.fromList [ Sheet Nothing ]
+    ( { sheets = Array.fromList [ emptySheet ]
       , rows = Array.fromList []
       }
     , Task.attempt (UpdateSheetBounds 0)  (Browser.Dom.getElement "sheet0")
     )
 
+
+emptySheet : Sheet
+emptySheet =
+    { bounds = Nothing }
+
+
+emptyRow : Row
+emptyRow =
+    { bounds = Nothing
+    , columns = Array.fromList []
+    }
+
+
+emptyColumn : Column
+emptyColumn =
+    { bounds = Nothing }
 
 
 -- Update
@@ -68,6 +89,7 @@ init _ =
 
 type Msg
     = AddRow
+    | AddColumn Int
     | UpdateSheetBounds Int (Result Error Element)
 
 
@@ -75,9 +97,18 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         AddRow ->
-            ( { model | rows = Array.push (Row Nothing) model.rows }
+            ( { model | rows = Array.push emptyRow model.rows }
             , Cmd.none
             )
+
+        AddColumn index ->
+            case (Array.get index model.rows) of
+                Just row ->
+                    ( { model | rows = Array.set index { row | columns =  Array.push emptyColumn row.columns } model.rows }
+                    , Cmd.none
+                    )
+                Nothing ->
+                    ( model, Cmd.none )
 
         UpdateSheetBounds index result ->
             case result of
@@ -121,7 +152,7 @@ viewSidebar model =
               [ button [ onClick AddRow ]
                     [ text "Add Row" ]
               ]
-        , div []
+        , div [ class "cards" ]
               (List.map viewSidebarRow (Array.toIndexedList model.rows))
         ]
 
@@ -135,14 +166,38 @@ viewSidebarRow rowTuple =
         row =
             Tuple.second rowTuple
     in
-    div []
-        [ div [] [ text ("Row #" ++ String.fromInt index)]
+    div [ class "card" ]
+        [ div [ class "header" ]
+              [ div [] [ text ("Row #" ++ String.fromInt index)]
+              , div []
+                  [ button [ onClick (AddColumn index) ]
+                        [ text "Add Column" ]
+                  ]
+              ]
         , div []
-            [button [] [ text "Add Column" ]
+            [ div [ ]
+                  (List.map viewSidebarColumn (Array.toIndexedList row.columns))
             ]
         ]
 
-        
+
+viewSidebarColumn : (Int, Column) -> Html Msg
+viewSidebarColumn columnTuple =
+    let
+        index =
+            Tuple.first columnTuple
+    in
+    div [ class "column" ]
+        [ div [ class "header" ]
+              [ div []
+                    [ text ("Column #" ++ String.fromInt index) ]
+              , div []
+                  [ button []
+                        [ text "Add Section" ]
+                  ]
+              ]
+        ]
+
 viewContent : Model -> Html Msg
 viewContent model =
     div [ class "content" ]
@@ -154,9 +209,6 @@ viewSheet rows sheetTuple =
     let
         index =
             Tuple.first sheetTuple
-
-        sheet =
-            Tuple.second sheetTuple
     in
     div [ id ("sheet" ++ String.fromInt index), class "sheet" ]
         [ div [ id "sheetContainer", style "height" "auto" ]
