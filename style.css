@@ -11,8 +11,10 @@
 .sidebar {
     display: flex;
     flex-direction: column;
+    height: 100vh;
     width: calc(100% / 3);
     border-right: 1px solid black;
+    overflow-y: scroll;
 }
 
 .sidebar .actions {
