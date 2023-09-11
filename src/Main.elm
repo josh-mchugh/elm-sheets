@@ -104,6 +104,7 @@ type Msg
     = AddRow
     | AddColumn Int
     | AddSection Int Int
+    | UpdateSectionBounds Int Int Int (Result Error Element)
     | UpdateSheetBounds Int (Result Error Element)
 
 
@@ -134,13 +135,34 @@ update msg model =
                     case (Array.get columnIndex row.columns) of
                         Just column ->
                             ( { model | rows = Array.set rowIndex { row | columns = Array.set columnIndex (updateColumn column) row.columns } model.rows }
-                            , Cmd.none
+                            , Task.attempt (UpdateSectionBounds rowIndex columnIndex (Array.length column.sections)) (Browser.Dom.getElement ("section" ++ String.fromInt (Array.length column.sections)))
                             )
 
                         Nothing ->
                             ( model, Cmd.none )
 
                 Nothing ->
+                    ( model, Cmd.none )
+
+        UpdateSectionBounds rowIndex columnIndex sectionIndex result ->
+            case result of
+                Ok element ->
+                    case (Array.get rowIndex model.rows) of
+                        Just row ->
+                            case (Array.get columnIndex row.columns) of
+                                Just column ->
+                                    case (Array.get sectionIndex column.sections) of
+                                        Just section ->
+                                            ( { model | rows = Array.set rowIndex { row | columns = Array.set columnIndex { column | sections = Array.set sectionIndex { section | bounds = Just (createBounds element) } column.sections } row.columns } model.rows }
+                                            , Cmd.none
+                                            )
+                                        Nothing ->
+                                            ( model, Cmd.none)
+                                Nothing ->
+                                    ( model, Cmd.none )
+                        Nothing ->
+                            ( model, Cmd.none )
+                Err error ->
                     ( model, Cmd.none )
 
         UpdateSheetBounds index result ->
@@ -283,5 +305,5 @@ viewSection sectionTuple =
         index =
             Tuple.first sectionTuple
     in
-    div []
+    div [ id ("section" ++ String.fromInt index)]
         [ text ("Section #" ++ String.fromInt index) ]
