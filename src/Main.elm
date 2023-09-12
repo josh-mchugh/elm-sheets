@@ -117,33 +117,42 @@ update msg model =
             , Cmd.none
             )
 
-        AddColumn index ->
-            case (Array.get index model.rows) of
-                Just row ->
-                    ( { model | rows = Array.set index { row | columns =  Array.push emptyColumn row.columns } model.rows }
-                    , Cmd.none
-                    )
-                Nothing ->
-                    ( model, Cmd.none )
+        AddColumn rowIndex ->
+            let
+                updateRow (index, row) =
+                    if (index == rowIndex) then
+                        { row | columns = Array.push emptyColumn row.columns }
+                    else
+                        row
+            in
+            ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
+            , Cmd.none
+            )
 
         AddSection rowIndex columnIndex ->
             let
-                updateColumn column =
-                    { column | sections = Array.push emptySection column.sections }
+                updateRow (index, row) =
+                    if (index == rowIndex) then
+                        { row | columns = Array.fromList (List.map updateColumn (Array.toIndexedList row.columns)) }
+                    else
+                        row
+
+                updateColumn (index, column) =
+                    if (index == columnIndex) then
+                        { column | sections = Array.push emptySection column.sections }
+                    else
+                        column
+
+                addSectionCmd =
+                    Array.get rowIndex model.rows
+                        |> Maybe.andThen (\row -> Array.get columnIndex row.columns)
+                        |> Maybe.map (\column -> Array.length column.sections)
+                        |> Maybe.map (\length -> Task.attempt (UpdateSectionBounds rowIndex columnIndex length) (Browser.Dom.getElement ("section" ++ String.fromInt length)))
+                        |> Maybe.withDefault Cmd.none
             in
-            case (Array.get rowIndex model.rows) of
-                Just row ->
-                    case (Array.get columnIndex row.columns) of
-                        Just column ->
-                            ( { model | rows = Array.set rowIndex { row | columns = Array.set columnIndex (updateColumn column) row.columns } model.rows }
-                            , Task.attempt (UpdateSectionBounds rowIndex columnIndex (Array.length column.sections)) (Browser.Dom.getElement ("section" ++ String.fromInt (Array.length column.sections)))
-                            )
-
-                        Nothing ->
-                            ( model, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
+            ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
+            , addSectionCmd
+            )
 
         UpdateSectionBounds rowIndex columnIndex sectionIndex result ->
             let
