@@ -10,6 +10,7 @@ import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (class, id, style)
 import Html.Events exposing (onClick)
 import Task
+import Platform.Cmd as Cmd
 
 
 
@@ -145,39 +146,49 @@ update msg model =
                     ( model, Cmd.none )
 
         UpdateSectionBounds rowIndex columnIndex sectionIndex result ->
-            case result of
-                Ok element ->
-                    case (Array.get rowIndex model.rows) of
-                        Just row ->
-                            case (Array.get columnIndex row.columns) of
-                                Just column ->
-                                    case (Array.get sectionIndex column.sections) of
-                                        Just section ->
-                                            ( { model | rows = Array.set rowIndex { row | columns = Array.set columnIndex { column | sections = Array.set sectionIndex { section | bounds = Just (createBounds element) } column.sections } row.columns } model.rows }
-                                            , Cmd.none
-                                            )
-                                        Nothing ->
-                                            ( model, Cmd.none)
-                                Nothing ->
-                                    ( model, Cmd.none )
-                        Nothing ->
-                            ( model, Cmd.none )
-                Err error ->
-                    ( model, Cmd.none )
+            let
+                updateRow ( index, row ) =
+                    if (index == rowIndex) then
+                        { row | columns = Array.fromList (List.map updateColumn (Array.toIndexedList row.columns)) }
+                    else
+                        row
 
-        UpdateSheetBounds index result ->
-            case result of
-                Ok element ->
-                    case (Array.get index model.sheets) of
-                        Just sheet ->
-                            ( { model | sheets = Array.set index { sheet | bounds = Just (createBounds element) } model.sheets }
-                            , Cmd.none
-                            )
-                        Nothing ->
-                            ( model, Cmd.none )
+                updateColumn ( index, column ) =
+                    if (index == columnIndex) then
+                        { column | sections = Array.fromList (List.map updateSection (Array.toIndexedList column.sections)) }
+                    else
+                        column
 
-                Err error ->
-                    ( model, Cmd.none )
+                updateSection ( index, section ) =
+                    if (index == sectionIndex) then
+                        { section | bounds = maybeBounds result }
+                    else
+                        section
+            in
+            ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
+            , Cmd.none
+            )
+
+        UpdateSheetBounds sheetIndex result ->
+            let
+                updateSheet ( index, sheet ) =
+                    if (index == sheetIndex) then
+                        { sheet | bounds = maybeBounds result }
+                    else
+                        sheet
+            in
+            ( { model | sheets = Array.fromList (List.map updateSheet (Array.toIndexedList model.sheets)) }
+            , Cmd.none
+            )
+
+
+maybeBounds : (Result Error Element) -> Maybe Bounds
+maybeBounds result =
+    case result of
+        Ok element ->
+            Just <| createBounds element
+        Err error ->
+            Nothing
 
 
 createBounds : Element -> Bounds
