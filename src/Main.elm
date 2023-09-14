@@ -35,72 +35,59 @@ main =
 type alias Model =
     { sheets : Array Sheet
     , rows : Array Row
-    , outOfBounds : Bool
+    , exceedsHeight : Bool
     }
 
 
 type alias Sheet =
-    { bounds : Maybe Bounds }
-
-
-type alias Bounds =
-    { top: Float
-    , left: Float
-    , bottom: Float
-    , right: Float
-    }
+    { dimension : Maybe Dimension }
 
 
 type alias Row =
-    { bounds : Maybe Bounds
-    , columns : Array Column
-    }
+    { columns : Array Column }
 
 
 type alias Column =
-    { bounds : Maybe Bounds
-    , contentBounds: Maybe Bounds
-    , sections : Array Section
-    }
+    { sections : Array Section }
 
 
 type alias Section =
-    { bounds : Maybe Bounds }
+    { dimension : Maybe Dimension }
 
+
+type alias Dimension =
+    { height : Float
+    , width : Float
+    }
 
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { sheets = Array.fromList [ emptySheet ]
       , rows = Array.fromList []
-      , outOfBounds = False
+      , exceedsHeight = False
       }
-    , Task.attempt (UpdateSheetBounds 0)  (Browser.Dom.getElement "sheet0")
+    , Task.attempt (UpdateSheetDimension 0)  (Browser.Dom.getElement "sheet0")
     )
 
 
 emptySheet : Sheet
 emptySheet =
-    { bounds = Nothing }
+    { dimension = Nothing }
 
 
 emptyRow : Row
 emptyRow =
-    { bounds = Nothing
-    , columns = Array.fromList []
-    }
+    { columns = Array.fromList [] }
 
 
 emptyColumn : Column
 emptyColumn =
-    { bounds = Nothing
-    , contentBounds = Nothing
-    , sections = Array.fromList []
-    }
+    { sections = Array.fromList [] }
 
 
 emptySection : Section
 emptySection =
-    { bounds = Nothing }
+    { dimension = Nothing }
 
 
 -- Update
@@ -110,9 +97,9 @@ type Msg
     = AddRow
     | AddColumn Int
     | AddSection Int Int
-    | UpdateSectionBounds Int Int Int (Result Error Element)
-    | UpdateSheetBounds Int (Result Error Element)
-    | UpdateSheetContainerBounds Int (Result Error Element)
+    | UpdateSectionDimension Int Int Int (Result Error Element)
+    | UpdateSheetDimension Int (Result Error Element)
+    | UpdateSheetContainerDimension Int (Result Error Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -153,14 +140,14 @@ update msg model =
                     Array.get rowIndex model.rows
                         |> Maybe.andThen (\row -> Array.get columnIndex row.columns)
                         |> Maybe.map (\column -> Array.length column.sections)
-                        |> Maybe.map (\length -> Task.attempt (UpdateSectionBounds rowIndex columnIndex length) (Browser.Dom.getElement ("section" ++ String.fromInt length)))
+                        |> Maybe.map (\length -> Task.attempt (UpdateSectionDimension rowIndex columnIndex length) (Browser.Dom.getElement ("section" ++ String.fromInt length)))
                         |> Maybe.withDefault Cmd.none
             in
             ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
             , cmd
             )
 
-        UpdateSectionBounds rowIndex columnIndex sectionIndex result ->
+        UpdateSectionDimension rowIndex columnIndex sectionIndex result ->
             let
                 updateRow ( index, row ) =
                     if (index == rowIndex) then
@@ -176,19 +163,19 @@ update msg model =
 
                 updateSection ( index, section ) =
                     if (index == sectionIndex) then
-                        { section | bounds = maybeBounds result }
+                        { section | dimension = maybeDimension result }
                     else
                         section
             in
             ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
-            , Task.attempt (UpdateSheetContainerBounds 0) (Browser.Dom.getElement "sheetContainer")
+            , Task.attempt (UpdateSheetContainerDimension 0) (Browser.Dom.getElement "sheetContainer")
             )
 
-        UpdateSheetBounds sheetIndex result ->
+        UpdateSheetDimension sheetIndex result ->
             let
                 updateSheet ( index, sheet ) =
                     if (index == sheetIndex) then
-                        { sheet | bounds = maybeBounds result }
+                        { sheet | dimension = maybeDimension result }
                     else
                         sheet
             in
@@ -196,38 +183,29 @@ update msg model =
             , Cmd.none
             )
 
-        UpdateSheetContainerBounds sheetIndex result ->
+        UpdateSheetContainerDimension sheetIndex result ->
             let
-                sheetBounds =
+                sheetHeight =
                     Array.get sheetIndex model.sheets
-                        |> Maybe.andThen (\sheet -> sheet.bounds)
-                        |> Maybe.map (\bounds -> bounds.bottom)
+                        |> Maybe.andThen (\sheet -> sheet.dimension)
+                        |> Maybe.map (\dimension -> dimension.height)
                         |> Maybe.withDefault 0
 
-                containerBounds =
-                    maybeBounds result
-                        |> Maybe.map (\bounds -> bounds.bottom)
+                containerHeight =
+                    maybeDimension result
+                        |> Maybe.map (\dimension -> dimension.height)
                         |> Maybe.withDefault 0
             in
-            ( { model | outOfBounds = containerBounds > sheetBounds }, Cmd.none )
+            ( { model | exceedsHeight = containerHeight > sheetHeight }, Cmd.none )
 
 
-maybeBounds : (Result Error Element) -> Maybe Bounds
-maybeBounds result =
+maybeDimension : (Result Error Element) -> Maybe Dimension
+maybeDimension result =
     case result of
         Ok element ->
-            Just <| createBounds element
+            Just <| Dimension element.element.height element.element.width
         Err error ->
             Nothing
-
-
-createBounds : Element -> Bounds
-createBounds element =
-    { top = element.element.y
-    , left = element.element.x
-    , bottom = element.element.y + element.element.height
-    , right = element.element.x + element.element.width
-    }
 
 
 -- VIEW
@@ -245,8 +223,8 @@ viewSidebar : Model -> Html Msg
 viewSidebar model =
     let
         displayText =
-            if (model.outOfBounds) then
-                text "Elements exceed sheet bounds."
+            if (model.exceedsHeight) then
+                text "Elements exceed sheet height."
             else
                 text "Everything is looking good."
     in
