@@ -11,6 +11,7 @@ import Html.Attributes exposing (class, id, style)
 import Html.Events exposing (onClick)
 import Task
 import Platform.Cmd as Cmd
+import Html exposing (section)
 
 
 
@@ -33,7 +34,8 @@ main =
 
 type alias Model =
     { sheets : Array Sheet
-     , rows : Array Row
+    , rows : Array Row
+    , outOfBounds : Bool
     }
 
 
@@ -57,6 +59,7 @@ type alias Row =
 
 type alias Column =
     { bounds : Maybe Bounds
+    , contentBounds: Maybe Bounds
     , sections : Array Section
     }
 
@@ -69,6 +72,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { sheets = Array.fromList [ emptySheet ]
       , rows = Array.fromList []
+      , outOfBounds = False
       }
     , Task.attempt (UpdateSheetBounds 0)  (Browser.Dom.getElement "sheet0")
     )
@@ -89,6 +93,7 @@ emptyRow =
 emptyColumn : Column
 emptyColumn =
     { bounds = Nothing
+    , contentBounds = Nothing
     , sections = Array.fromList []
     }
 
@@ -107,6 +112,7 @@ type Msg
     | AddSection Int Int
     | UpdateSectionBounds Int Int Int (Result Error Element)
     | UpdateSheetBounds Int (Result Error Element)
+    | UpdateSheetContainerBounds Int (Result Error Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -143,7 +149,7 @@ update msg model =
                     else
                         column
 
-                addSectionCmd =
+                cmd =
                     Array.get rowIndex model.rows
                         |> Maybe.andThen (\row -> Array.get columnIndex row.columns)
                         |> Maybe.map (\column -> Array.length column.sections)
@@ -151,7 +157,7 @@ update msg model =
                         |> Maybe.withDefault Cmd.none
             in
             ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
-            , addSectionCmd
+            , cmd
             )
 
         UpdateSectionBounds rowIndex columnIndex sectionIndex result ->
@@ -175,7 +181,7 @@ update msg model =
                         section
             in
             ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
-            , Cmd.none
+            , Task.attempt (UpdateSheetContainerBounds 0) (Browser.Dom.getElement "sheetContainer")
             )
 
         UpdateSheetBounds sheetIndex result ->
@@ -189,6 +195,25 @@ update msg model =
             ( { model | sheets = Array.fromList (List.map updateSheet (Array.toIndexedList model.sheets)) }
             , Cmd.none
             )
+
+        UpdateSheetContainerBounds sheetIndex result ->
+            let
+                maybeSheetBounds =
+                    Array.get sheetIndex model.sheets
+                        |> Maybe.andThen (\sheet -> sheet.bounds)
+
+                checkBoundsExceeded =
+                    case maybeSheetBounds of
+                        Just sheetBounds ->
+                            case (maybeBounds result) of
+                                Just containerBounds ->
+                                    containerBounds.bottom > sheetBounds.bottom
+                                Nothing ->
+                                    False
+                        Nothing ->
+                            False
+            in
+            ( { model | outOfBounds = checkBoundsExceeded }, Cmd.none )
 
 
 maybeBounds : (Result Error Element) -> Maybe Bounds
@@ -222,25 +247,27 @@ view model =
 
 viewSidebar : Model -> Html Msg
 viewSidebar model =
+    let
+        displayText =
+            if (model.outOfBounds) then
+                text "Elements exceed sheet bounds."
+            else
+                text "Everything is looking good."
+    in
     div [ class "sidebar" ]
         [ div [ class "actions" ]
               [ button [ onClick AddRow ]
                     [ text "Add Row" ]
               ]
+        , div []
+              [ displayText ]
         , div [ class "cards" ]
               (List.map viewSidebarRow (Array.toIndexedList model.rows))
         ]
 
 
 viewSidebarRow : (Int, Row) -> Html Msg
-viewSidebarRow rowTuple =
-    let
-        index =
-            Tuple.first rowTuple
-
-        row =
-            Tuple.second rowTuple
-    in
+viewSidebarRow ( index, row ) =
     div [ class "card" ]
         [ div [ class "header" ]
               [ div [] [ text ("Row #" ++ String.fromInt index)]
@@ -257,14 +284,7 @@ viewSidebarRow rowTuple =
 
 
 viewSidebarColumn : Int -> (Int, Column) -> Html Msg
-viewSidebarColumn rowIndex columnTuple =
-    let
-        index =
-            Tuple.first columnTuple
-
-        column =
-            Tuple.second columnTuple
-    in
+viewSidebarColumn rowIndex ( index, column ) =
     div [ class "column" ]
         [ div [ class "header" ]
               [ div []
@@ -280,11 +300,7 @@ viewSidebarColumn rowIndex columnTuple =
 
 
 viewSidebarSection : Int -> Int -> (Int, Section) -> Html Msg
-viewSidebarSection rowIndex columnIndex sectionTuple =
-    let
-        index =
-            Tuple.first sectionTuple
-    in
+viewSidebarSection rowIndex columnIndex ( index, section ) =
     div []
         [ text ("Section #" ++ String.fromInt index)]
 
@@ -296,34 +312,28 @@ viewContent model =
 
 
 viewSheet : Array Row -> (Int, Sheet) -> Html Msg
-viewSheet rows sheetTuple =
-    let
-        index =
-            Tuple.first sheetTuple
-    in
+viewSheet rows ( index, sheet ) =
     div [ id ("sheet" ++ String.fromInt index), class "sheet" ]
         [ div [ id "sheetContainer", style "height" "auto" ]
-              (List.map viewRow (Array.toList rows))
+              (List.map viewRow (Array.toIndexedList rows))
         ]
 
 
-viewRow : Row -> Html Msg
-viewRow row =
+viewRow : (Int, Row) -> Html Msg
+viewRow ( index, row ) =
     div [ class "row" ]
-        (List.map viewColumn (Array.toList row.columns))
+        (List.map viewColumn (Array.toIndexedList row.columns))
 
 
-viewColumn : Column -> Html Msg
-viewColumn column =
-    div []
-        (List.map viewSection (Array.toIndexedList column.sections))
+viewColumn : (Int, Column) -> Html Msg
+viewColumn ( index, column ) =
+    div [ class "column" ]
+        [ div [ id ("columnContent#" ++ (String.fromInt index)), class "column__content" ]
+              (List.map viewSection (Array.toIndexedList column.sections))
+        ]
 
 
 viewSection : (Int, Section) -> Html Msg
-viewSection sectionTuple =
-    let
-        index =
-            Tuple.first sectionTuple
-    in
+viewSection ( index, section ) =
     div [ id ("section" ++ String.fromInt index)]
         [ text ("Section #" ++ String.fromInt index) ]
