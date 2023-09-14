@@ -198,22 +198,18 @@ update msg model =
 
         UpdateSheetContainerBounds sheetIndex result ->
             let
-                maybeSheetBounds =
+                sheetBounds =
                     Array.get sheetIndex model.sheets
                         |> Maybe.andThen (\sheet -> sheet.bounds)
+                        |> Maybe.map (\bounds -> bounds.bottom)
+                        |> Maybe.withDefault 0
 
-                checkBoundsExceeded =
-                    case maybeSheetBounds of
-                        Just sheetBounds ->
-                            case (maybeBounds result) of
-                                Just containerBounds ->
-                                    containerBounds.bottom > sheetBounds.bottom
-                                Nothing ->
-                                    False
-                        Nothing ->
-                            False
+                containerBounds =
+                    maybeBounds result
+                        |> Maybe.map (\bounds -> bounds.bottom)
+                        |> Maybe.withDefault 0
             in
-            ( { model | outOfBounds = checkBoundsExceeded }, Cmd.none )
+            ( { model | outOfBounds = containerBounds > sheetBounds }, Cmd.none )
 
 
 maybeBounds : (Result Error Element) -> Maybe Bounds
