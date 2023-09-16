@@ -3,7 +3,6 @@ module Main exposing (main)
 {-| Elm Sheets application
 -}
 
-import Array exposing (Array)
 import Browser
 import Browser.Dom exposing (Element, Error)
 import Html exposing (Html, button, div, text)
@@ -33,26 +32,41 @@ main =
 
 
 type alias Model =
-    { sheets : Array Sheet
-    , rows : Array Row
+    { sheets : List Sheet
+    , rows : List Row
+    , columns: List Column
+    , sections: List Section
     , exceedsHeight : Bool
     }
 
 
 type alias Sheet =
-    { dimension : Maybe Dimension }
+    { id : String
+    , order : Int
+    , dimension : Maybe Dimension
+    }
 
 
 type alias Row =
-    { columns : Array Column }
+    { id : String
+    , sheetId: String
+    , order : Int
+    }
 
 
 type alias Column =
-    { sections : Array Section }
+    { id : String
+    , rowId: String
+    , order: Int
+    }
 
 
 type alias Section =
-    { dimension : Maybe Dimension }
+    { id : String
+    , columnId: String
+    , order : Int
+    , dimension : Maybe Dimension
+    }
 
 
 type alias Dimension =
@@ -60,34 +74,25 @@ type alias Dimension =
     , width : Float
     }
 
+
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { sheets = Array.fromList [ emptySheet ]
-      , rows = Array.fromList []
+    ( { sheets = [ initSheet ]
+      , rows = []
+      , columns = []
+      , sections = []
       , exceedsHeight = False
       }
-    , Task.attempt (UpdateSheetDimension 0)  (Browser.Dom.getElement "sheet0")
+    , Task.attempt (UpdateSheetDimension "sheet0")  (Browser.Dom.getElement "sheet0")
     )
 
 
-emptySheet : Sheet
-emptySheet =
-    { dimension = Nothing }
-
-
-emptyRow : Row
-emptyRow =
-    { columns = Array.fromList [] }
-
-
-emptyColumn : Column
-emptyColumn =
-    { sections = Array.fromList [] }
-
-
-emptySection : Section
-emptySection =
-    { dimension = Nothing }
+initSheet : Sheet
+initSheet =
+    { id = "sheet0"
+    , order = 0
+    , dimension = Nothing
+    }
 
 
 -- Update
@@ -95,98 +100,60 @@ emptySection =
 
 type Msg
     = AddRow
-    | AddColumn Int
-    | AddSection Int Int
-    | UpdateSectionDimension Int Int Int (Result Error Element)
-    | UpdateSheetDimension Int (Result Error Element)
-    | UpdateSheetContainerDimension Int (Result Error Element)
+    | AddColumn String
+    | AddSection String
+    | UpdateSectionDimension String (Result Error Element)
+    | UpdateSheetDimension String (Result Error Element)
+    | UpdateSheetContainerDimension String (Result Error Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         AddRow ->
-            ( { model | rows = Array.push emptyRow model.rows }
+            ( { model | rows = model.rows ++ [(createRow "sheet0" (List.length model.rows))] }
             , Cmd.none
             )
 
-        AddColumn rowIndex ->
-            let
-                updateRow (index, row) =
-                    if (index == rowIndex) then
-                        { row | columns = Array.push emptyColumn row.columns }
-                    else
-                        row
-            in
-            ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
+        AddColumn rowId ->
+            ( { model | columns = model.columns ++ [(createColumn rowId (List.length model.columns))] }
             , Cmd.none
             )
 
-        AddSection rowIndex columnIndex ->
-            let
-                updateRow (index, row) =
-                    if (index == rowIndex) then
-                        { row | columns = Array.fromList (List.map updateColumn (Array.toIndexedList row.columns)) }
-                    else
-                        row
-
-                updateColumn (index, column) =
-                    if (index == columnIndex) then
-                        { column | sections = Array.push emptySection column.sections }
-                    else
-                        column
-
-                cmd =
-                    Array.get rowIndex model.rows
-                        |> Maybe.andThen (\row -> Array.get columnIndex row.columns)
-                        |> Maybe.map (\column -> Array.length column.sections)
-                        |> Maybe.map (\length -> Task.attempt (UpdateSectionDimension rowIndex columnIndex length) (Browser.Dom.getElement ("section" ++ String.fromInt length)))
-                        |> Maybe.withDefault Cmd.none
-            in
-            ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
-            , cmd
+        AddSection columnId ->
+            ( { model | sections = model.sections ++ [(createSection columnId (List.length model.sections))] }
+            , Task.attempt (UpdateSectionDimension (createId "section" (List.length model.sections) )) (Browser.Dom.getElement (createId "section" (List.length model.sections)))
             )
 
-        UpdateSectionDimension rowIndex columnIndex sectionIndex result ->
+        UpdateSectionDimension sectionId result ->
             let
-                updateRow ( index, row ) =
-                    if (index == rowIndex) then
-                        { row | columns = Array.fromList (List.map updateColumn (Array.toIndexedList row.columns)) }
-                    else
-                        row
-
-                updateColumn ( index, column ) =
-                    if (index == columnIndex) then
-                        { column | sections = Array.fromList (List.map updateSection (Array.toIndexedList column.sections)) }
-                    else
-                        column
-
-                updateSection ( index, section ) =
-                    if (index == sectionIndex) then
-                        { section | dimension = maybeDimension result }
-                    else
-                        section
+               updateSection section =
+                   if (sectionId == section.id) then
+                       { section | dimension = maybeDimension result }
+                   else
+                       section
             in
-            ( { model | rows = Array.fromList (List.map updateRow (Array.toIndexedList model.rows)) }
-            , Task.attempt (UpdateSheetContainerDimension 0) (Browser.Dom.getElement "sheetContainer")
+            ( { model | sections = List.map updateSection model.sections }
+            , Task.attempt (UpdateSheetContainerDimension "sheet0") (Browser.Dom.getElement "sheetContainer")
             )
 
-        UpdateSheetDimension sheetIndex result ->
+        UpdateSheetDimension sheetId result ->
             let
-                updateSheet ( index, sheet ) =
-                    if (index == sheetIndex) then
+                updateSheet sheet =
+                    if (sheetId == sheet.id) then
                         { sheet | dimension = maybeDimension result }
                     else
                         sheet
             in
-            ( { model | sheets = Array.fromList (List.map updateSheet (Array.toIndexedList model.sheets)) }
+            ( { model | sheets = List.map updateSheet model.sheets }
             , Cmd.none
             )
 
-        UpdateSheetContainerDimension sheetIndex result ->
+        UpdateSheetContainerDimension sheetId result ->
             let
                 sheetHeight =
-                    Array.get sheetIndex model.sheets
+                    List.filter (\sheet -> sheetId == sheet.id) model.sheets
+                        |> List.head
                         |> Maybe.andThen (\sheet -> sheet.dimension)
                         |> Maybe.map (\dimension -> dimension.height)
                         |> Maybe.withDefault 0
@@ -197,6 +164,26 @@ update msg model =
                         |> Maybe.withDefault 0
             in
             ( { model | exceedsHeight = containerHeight > sheetHeight }, Cmd.none )
+
+
+createId : String -> Int -> String
+createId prefix value =
+    prefix ++ String.fromInt value
+
+
+createRow : String -> Int -> Row
+createRow sheetId order=
+    Row (createId "row" order) sheetId order
+
+
+createColumn : String -> Int -> Column
+createColumn rowId order =
+    Column (createId "column" order) rowId order
+
+
+createSection : String  -> Int -> Section
+createSection columnId order =
+    Section (createId "section" order) columnId order Nothing
 
 
 maybeDimension : (Result Error Element) -> Maybe Dimension
@@ -236,78 +223,78 @@ viewSidebar model =
         , div []
               [ displayText ]
         , div [ class "cards" ]
-              (List.map viewSidebarRow (Array.toIndexedList model.rows))
+              (List.map (viewSidebarRow model) model.rows)
         ]
 
 
-viewSidebarRow : (Int, Row) -> Html Msg
-viewSidebarRow ( index, row ) =
+viewSidebarRow : Model -> Row -> Html Msg
+viewSidebarRow model row =
     div [ class "card" ]
         [ div [ class "header" ]
-              [ div [] [ text ("Row #" ++ String.fromInt index)]
+              [ div [] [ text ("Row - " ++ row.id)]
               , div []
-                  [ button [ onClick (AddColumn index) ]
+                  [ button [ onClick (AddColumn row.id) ]
                         [ text "Add Column" ]
                   ]
               ]
         , div []
             [ div [ ]
-                  (List.map (viewSidebarColumn index) (Array.toIndexedList row.columns))
+                  (List.map (viewSidebarColumn model) (List.filter (\column -> column.rowId == row.id) model.columns))
             ]
         ]
 
 
-viewSidebarColumn : Int -> (Int, Column) -> Html Msg
-viewSidebarColumn rowIndex ( index, column ) =
+viewSidebarColumn : Model -> Column -> Html Msg
+viewSidebarColumn model column =
     div [ class "column" ]
         [ div [ class "header" ]
               [ div []
-                    [ text ("Column #" ++ String.fromInt index) ]
+                    [ text ("Column - " ++ column.id) ]
               , div []
-                  [ button [ onClick (AddSection rowIndex index) ]
+                  [ button [ onClick (AddSection column.id) ]
                         [ text "Add Section" ]
                   ]
               ]
         , div []
-            (List.map (viewSidebarSection rowIndex index) (Array.toIndexedList column.sections))
+            (List.map viewSidebarSection (List.filter (\section -> section.columnId == column.id) model.sections))
         ]
 
 
-viewSidebarSection : Int -> Int -> (Int, Section) -> Html Msg
-viewSidebarSection rowIndex columnIndex ( index, section ) =
+viewSidebarSection : Section -> Html Msg
+viewSidebarSection section =
     div []
-        [ text ("Section #" ++ String.fromInt index)]
+        [ text ("Section - " ++ section.id)]
 
 
 viewContent : Model -> Html Msg
 viewContent model =
     div [ class "content" ]
-        (List.map (viewSheet model.rows) (Array.toIndexedList model.sheets))
+        (List.map (viewSheet model) model.sheets)
 
 
-viewSheet : Array Row -> (Int, Sheet) -> Html Msg
-viewSheet rows ( index, sheet ) =
-    div [ id ("sheet" ++ String.fromInt index), class "sheet" ]
+viewSheet : Model -> Sheet -> Html Msg
+viewSheet model sheet =
+    div [ id sheet.id, class "sheet" ]
         [ div [ id "sheetContainer", style "height" "auto" ]
-              (List.map viewRow (Array.toIndexedList rows))
+              (List.map (viewRow model) (List.filter (\row -> row.sheetId == sheet.id) model.rows))
         ]
 
 
-viewRow : (Int, Row) -> Html Msg
-viewRow ( index, row ) =
-    div [ class "row" ]
-        (List.map viewColumn (Array.toIndexedList row.columns))
+viewRow : Model -> Row -> Html Msg
+viewRow model row =
+    div [ id row.id, class "row" ]
+        (List.map (viewColumn model) (List.filter (\column -> column.rowId == row.id) model.columns))
 
 
-viewColumn : (Int, Column) -> Html Msg
-viewColumn ( index, column ) =
+viewColumn : Model -> Column -> Html Msg
+viewColumn model column =
     div [ class "column" ]
-        [ div [ id ("columnContent#" ++ (String.fromInt index)), class "column__content" ]
-              (List.map viewSection (Array.toIndexedList column.sections))
+        [ div [ id column.id, class "column__content" ]
+              (List.map viewSection (List.filter (\section -> section.columnId == column.id) model.sections))
         ]
 
 
-viewSection : (Int, Section) -> Html Msg
-viewSection ( index, section ) =
-    div [ id ("section" ++ String.fromInt index)]
-        [ text ("Section #" ++ String.fromInt index) ]
+viewSection : Section -> Html Msg
+viewSection section =
+    div [ id section.id ]
+        [ text ("Section - " ++ section.id) ]
