@@ -5,19 +5,21 @@ module Main exposing (main)
 
 import Browser
 import Browser.Dom exposing (Element, Error)
+import Html exposing (section)
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (class, id, style)
 import Html.Events exposing (onClick)
+import Random exposing (Seed, initialSeed, step)
 import Task
 import Platform.Cmd as Cmd
-import Html exposing (section)
+import Uuid
 
 
 
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program Int Model Msg
 main =
     Browser.element
         { init = init
@@ -32,7 +34,8 @@ main =
 
 
 type alias Model =
-    { sheets : List Sheet
+    { currentSeed : Seed
+    , sheets : List Sheet
     , rows : List Row
     , columns: List Column
     , sections: List Section
@@ -75,9 +78,10 @@ type alias Dimension =
     }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( { sheets = [ initSheet ]
+init : Int -> ( Model, Cmd Msg )
+init seed =
+    ( { currentSeed = initialSeed seed
+      ,sheets = [ initSheet ]
       , rows = []
       , columns = []
       , sections = []
@@ -121,8 +125,13 @@ update msg model =
             )
 
         AddSection columnId ->
-            ( { model | sections = model.sections ++ [(createSection columnId (List.length model.sections))] }
-            , Task.attempt (UpdateSectionDimension (createId "section" (List.length model.sections) )) (Browser.Dom.getElement (createId "section" (List.length model.sections)))
+            let
+                ( uuid, newSeed ) =
+                    createUuid model.currentSeed
+            in
+            ( { model | sections = model.sections ++ [(createSection columnId (List.length model.sections) uuid)]
+              , currentSeed = newSeed }
+            , Task.attempt (UpdateSectionDimension (createId "section" (List.length model.sections) )) (Browser.Dom.getElement (Uuid.toString uuid))
             )
 
         UpdateSectionDimension sectionId result ->
@@ -166,6 +175,10 @@ update msg model =
             ( { model | exceedsHeight = containerHeight > sheetHeight }, Cmd.none )
 
 
+createUuid : Seed -> ( Uuid.Uuid, Seed )
+createUuid currentSeed =
+    step Uuid.uuidGenerator currentSeed
+
 createId : String -> Int -> String
 createId prefix value =
     prefix ++ String.fromInt value
@@ -181,9 +194,9 @@ createColumn rowId order =
     Column (createId "column" order) rowId order
 
 
-createSection : String  -> Int -> Section
-createSection columnId order =
-    Section (createId "section" order) columnId order Nothing
+createSection : String  -> Int -> Uuid.Uuid-> Section
+createSection columnId order uuid =
+    Section (Uuid.toString uuid) columnId order Nothing
 
 
 maybeDimension : (Result Error Element) -> Maybe Dimension
