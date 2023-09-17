@@ -48,6 +48,13 @@ type alias Sheet =
     { id : String
     , order : Int
     , dimension : Maybe Dimension
+    , container : SheetContainer
+    }
+
+
+type alias SheetContainer =
+    { id : String
+    , dimension : Maybe Dimension
     }
 
 
@@ -80,27 +87,38 @@ type alias Dimension =
 
 
 init : Int -> ( Model, Cmd Msg )
-init seed =
+init externalRandom =
     let
-        ( uuid, newSeed ) =
-            createUuid (initialSeed seed)
+        ( sheetUuid, sheetSeed ) =
+            createUuid (initialSeed externalRandom)
+
+        ( containerUuid, containerSeed ) =
+            createUuid (sheetSeed)
     in
-    ( { currentSeed = newSeed
-      , sheets = [ (initSheet uuid) ]
+    ( { currentSeed = containerSeed
+      , sheets = [ (initSheet sheetUuid containerUuid) ]
       , rows = []
       , columns = []
       , sections = []
       , exceedsHeight = False
-      , currentSheetId = uuid
+      , currentSheetId = sheetUuid
       }
-    , Task.attempt (UpdateSheetDimension uuid)  (Browser.Dom.getElement uuid)
+    , Task.attempt (UpdateSheetDimension sheetUuid)  (Browser.Dom.getElement sheetUuid)
     )
 
 
-initSheet : String -> Sheet
-initSheet uuid =
+initSheet : String -> String -> Sheet
+initSheet uuid containerUuid =
     { id = uuid
     , order = 0
+    , dimension = Nothing
+    , container = (initSheetContainer containerUuid)
+    }
+
+
+initSheetContainer : String -> SheetContainer
+initSheetContainer uuid =
+    { id = uuid
     , dimension = Nothing
     }
 
@@ -303,7 +321,7 @@ viewContent model =
 viewSheet : Model -> Sheet -> Html Msg
 viewSheet model sheet =
     div [ id sheet.id, class "sheet" ]
-        [ div [ id "sheetContainer", style "height" "auto" ]
+        [ div [ id sheet.container.id, style "height" "auto" ]
               (List.map (viewRow model) (List.filter (\row -> row.sheetId == sheet.id) model.rows))
         ]
 
