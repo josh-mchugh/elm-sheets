@@ -119,7 +119,7 @@ update msg model =
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
             in
-            ( { model | rows = model.rows ++ [(createRow (Uuid.toString uuid) "sheet0" (List.length model.rows))]
+            ( { model | rows = model.rows ++ [(createRow uuid "sheet0" (List.length model.rows))]
               , currentSeed = newSeed }
             , Cmd.none
             )
@@ -129,7 +129,7 @@ update msg model =
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
             in
-            ( { model | columns = model.columns ++ [(createColumn (Uuid.toString uuid) rowId (List.length model.columns))]
+            ( { model | columns = model.columns ++ [(createColumn uuid rowId (List.length model.columns))]
               , currentSeed = newSeed }
             , Cmd.none
             )
@@ -139,9 +139,9 @@ update msg model =
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
             in
-            ( { model | sections = model.sections ++ [(createSection (Uuid.toString uuid) columnId (List.length model.sections))]
+            ( { model | sections = model.sections ++ [(createSection uuid columnId (List.length model.sections))]
               , currentSeed = newSeed }
-            , Task.attempt (UpdateSectionDimension (Uuid.toString uuid )) (Browser.Dom.getElement (Uuid.toString uuid))
+            , Task.attempt (UpdateSectionDimension uuid) (Browser.Dom.getElement uuid)
             )
 
         UpdateSectionDimension sectionId result ->
@@ -185,9 +185,10 @@ update msg model =
             ( { model | exceedsHeight = containerHeight > sheetHeight }, Cmd.none )
 
 
-createUuid : Seed -> ( Uuid.Uuid, Seed )
+createUuid : Seed -> ( String, Seed )
 createUuid currentSeed =
     step Uuid.uuidGenerator currentSeed
+        |> Tuple.mapFirst Uuid.toString
 
 
 createRow : String -> String -> Int -> Row
