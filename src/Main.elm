@@ -115,12 +115,22 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         AddRow ->
-            ( { model | rows = model.rows ++ [(createRow "sheet0" (List.length model.rows))] }
+            let
+                ( uuid, newSeed ) =
+                    createUuid model.currentSeed
+            in
+            ( { model | rows = model.rows ++ [(createRow (Uuid.toString uuid) "sheet0" (List.length model.rows))]
+              , currentSeed = newSeed }
             , Cmd.none
             )
 
         AddColumn rowId ->
-            ( { model | columns = model.columns ++ [(createColumn rowId (List.length model.columns))] }
+            let
+                ( uuid, newSeed ) =
+                    createUuid model.currentSeed
+            in
+            ( { model | columns = model.columns ++ [(createColumn (Uuid.toString uuid) rowId (List.length model.columns))]
+              , currentSeed = newSeed }
             , Cmd.none
             )
 
@@ -129,9 +139,9 @@ update msg model =
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
             in
-            ( { model | sections = model.sections ++ [(createSection columnId (List.length model.sections) uuid)]
+            ( { model | sections = model.sections ++ [(createSection (Uuid.toString uuid) columnId (List.length model.sections))]
               , currentSeed = newSeed }
-            , Task.attempt (UpdateSectionDimension (createId "section" (List.length model.sections) )) (Browser.Dom.getElement (Uuid.toString uuid))
+            , Task.attempt (UpdateSectionDimension (Uuid.toString uuid )) (Browser.Dom.getElement (Uuid.toString uuid))
             )
 
         UpdateSectionDimension sectionId result ->
@@ -179,24 +189,20 @@ createUuid : Seed -> ( Uuid.Uuid, Seed )
 createUuid currentSeed =
     step Uuid.uuidGenerator currentSeed
 
-createId : String -> Int -> String
-createId prefix value =
-    prefix ++ String.fromInt value
+
+createRow : String -> String -> Int -> Row
+createRow uuid sheetId order =
+    Row uuid sheetId order
 
 
-createRow : String -> Int -> Row
-createRow sheetId order=
-    Row (createId "row" order) sheetId order
+createColumn : String -> String -> Int -> Column
+createColumn uuid rowId order =
+    Column uuid rowId order
 
 
-createColumn : String -> Int -> Column
-createColumn rowId order =
-    Column (createId "column" order) rowId order
-
-
-createSection : String  -> Int -> Uuid.Uuid-> Section
-createSection columnId order uuid =
-    Section (Uuid.toString uuid) columnId order Nothing
+createSection : String -> String  -> Int -> Section
+createSection uuid columnId order =
+    Section uuid columnId order Nothing
 
 
 maybeDimension : (Result Error Element) -> Maybe Dimension
