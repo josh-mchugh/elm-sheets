@@ -40,6 +40,7 @@ type alias Model =
     , columns: List Column
     , sections: List Section
     , exceedsHeight : Bool
+    , currentSheetId : String
     }
 
 
@@ -80,20 +81,25 @@ type alias Dimension =
 
 init : Int -> ( Model, Cmd Msg )
 init seed =
-    ( { currentSeed = initialSeed seed
-      ,sheets = [ initSheet ]
+    let
+        ( uuid, newSeed ) =
+            createUuid (initialSeed seed)
+    in
+    ( { currentSeed = newSeed
+      , sheets = [ (initSheet uuid) ]
       , rows = []
       , columns = []
       , sections = []
       , exceedsHeight = False
+      , currentSheetId = uuid
       }
-    , Task.attempt (UpdateSheetDimension "sheet0")  (Browser.Dom.getElement "sheet0")
+    , Task.attempt (UpdateSheetDimension uuid)  (Browser.Dom.getElement uuid)
     )
 
 
-initSheet : Sheet
-initSheet =
-    { id = "sheet0"
+initSheet : String -> Sheet
+initSheet uuid =
+    { id = uuid
     , order = 0
     , dimension = Nothing
     }
@@ -119,7 +125,7 @@ update msg model =
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
             in
-            ( { model | rows = model.rows ++ [(createRow uuid "sheet0" (List.length model.rows))]
+            ( { model | rows = model.rows ++ [(createRow uuid model.currentSheetId (List.length model.rows))]
               , currentSeed = newSeed }
             , Cmd.none
             )
@@ -153,7 +159,7 @@ update msg model =
                        section
             in
             ( { model | sections = List.map updateSection model.sections }
-            , Task.attempt (UpdateSheetContainerDimension "sheet0") (Browser.Dom.getElement "sheetContainer")
+            , Task.attempt (UpdateSheetContainerDimension model.currentSheetId) (Browser.Dom.getElement "sheetContainer")
             )
 
         UpdateSheetDimension sheetId result ->
@@ -182,7 +188,9 @@ update msg model =
                         |> Maybe.map (\dimension -> dimension.height)
                         |> Maybe.withDefault 0
             in
-            ( { model | exceedsHeight = containerHeight > sheetHeight }, Cmd.none )
+            ( { model | exceedsHeight = containerHeight > sheetHeight }
+            , Cmd.none
+            )
 
 
 createUuid : Seed -> ( String, Seed )
