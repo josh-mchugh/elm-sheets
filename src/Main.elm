@@ -36,19 +36,15 @@ main =
 type alias Model =
     { currentSeed : Seed
     , sheets : List Sheet
-    , rows : List Row
-    , columns: List Column
-    , sections: List Section
     , exceedsHeight : Bool
-    , currentSheetId : String
     }
 
 
 type alias Sheet =
     { id : String
-    , order : Int
     , dimension : Maybe Dimension
     , container : SheetContainer
+    , rows : List Row
     }
 
 
@@ -60,22 +56,18 @@ type alias SheetContainer =
 
 type alias Row =
     { id : String
-    , sheetId: String
-    , order : Int
+    , columns : List Column
     }
 
 
 type alias Column =
     { id : String
-    , rowId: String
-    , order: Int
+    , sections : List Section
     }
 
 
 type alias Section =
     { id : String
-    , columnId: String
-    , order : Int
     , dimension : Maybe Dimension
     }
 
@@ -97,12 +89,9 @@ init externalRandom =
     in
     ( { currentSeed = containerSeed
       , sheets = [ (initSheet sheetUuid containerUuid) ]
-      , rows = []
-      , columns = []
-      , sections = []
       , exceedsHeight = False
-      , currentSheetId = sheetUuid
       }
+
     , Task.attempt (UpdateSheetDimension sheetUuid)  (Browser.Dom.getElement sheetUuid)
     )
 
@@ -110,9 +99,9 @@ init externalRandom =
 initSheet : String -> String -> Sheet
 initSheet uuid containerUuid =
     { id = uuid
-    , order = 0
     , dimension = Nothing
     , container = (initSheetContainer containerUuid)
+    , rows = []
     }
 
 
@@ -142,9 +131,16 @@ update msg model =
             let
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
+
+                addRowToLastSheet =
+                    List.reverse model.sheets
+                        |> List.head
+                        |> Maybe.map (\sheet -> { sheet | rows = sheet.rows ++ [ (createRow uuid)  ] })
+                        |> Maybe.map (\sheet -> (List.drop 1 model.sheets) ++ [ sheet ])
+                        |> Maybe.withDefault model.sheets
+                        
             in
-            ( { model | rows = model.rows ++ [(createRow uuid model.currentSheetId (List.length model.rows))]
-              , currentSeed = newSeed }
+            ( { model | sheets = addRowToLastSheet, currentSeed = newSeed }
             , Cmd.none
             )
 
@@ -153,8 +149,7 @@ update msg model =
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
             in
-            ( { model | columns = model.columns ++ [(createColumn uuid rowId (List.length model.columns))]
-              , currentSeed = newSeed }
+            ( { model | currentSeed = newSeed }
             , Cmd.none
             )
 
@@ -163,8 +158,7 @@ update msg model =
                 ( uuid, newSeed ) =
                     createUuid model.currentSeed
             in
-            ( { model | sections = model.sections ++ [(createSection uuid columnId (List.length model.sections))]
-              , currentSeed = newSeed }
+            ( { model | currentSeed = newSeed }
             , Task.attempt (UpdateSectionDimension uuid) (Browser.Dom.getElement uuid)
             )
 
@@ -176,8 +170,8 @@ update msg model =
                    else
                        section
             in
-            ( { model | sections = List.map updateSection model.sections }
-            , Task.attempt (UpdateSheetContainerDimension model.currentSheetId) (Browser.Dom.getElement "sheetContainer")
+            ( model
+            , Task.attempt (UpdateSheetContainerDimension "") (Browser.Dom.getElement "sheetContainer")
             )
 
         UpdateSheetDimension sheetId result ->
@@ -217,19 +211,19 @@ createUuid currentSeed =
         |> Tuple.mapFirst Uuid.toString
 
 
-createRow : String -> String -> Int -> Row
-createRow uuid sheetId order =
-    Row uuid sheetId order
+createRow : String -> Row
+createRow uuid =
+    Row uuid []
 
 
-createColumn : String -> String -> Int -> Column
-createColumn uuid rowId order =
-    Column uuid rowId order
+createColumn : String -> Column
+createColumn uuid =
+    Column uuid []
 
 
-createSection : String -> String  -> Int -> Section
-createSection uuid columnId order =
-    Section uuid columnId order Nothing
+createSection : String -> Section
+createSection uuid =
+    Section uuid Nothing
 
 
 maybeDimension : (Result Error Element) -> Maybe Dimension
@@ -269,12 +263,15 @@ viewSidebar model =
         , div []
               [ displayText ]
         , div [ class "cards" ]
-              (List.map (viewSidebarRow model) model.rows)
+              (List.map (\sheet -> sheet.rows) model.sheets
+                   |> List.concat
+                   |> List.map viewSidebarRow
+              )
         ]
 
 
-viewSidebarRow : Model -> Row -> Html Msg
-viewSidebarRow model row =
+viewSidebarRow : Row -> Html Msg
+viewSidebarRow row =
     div [ class "card" ]
         [ div [ class "header" ]
               [ div [] [ text ("Row - " ++ row.id)]
@@ -285,13 +282,13 @@ viewSidebarRow model row =
               ]
         , div []
             [ div [ ]
-                  (List.map (viewSidebarColumn model) (List.filter (\column -> column.rowId == row.id) model.columns))
+                  (List.map viewSidebarColumn row.columns)
             ]
         ]
 
 
-viewSidebarColumn : Model -> Column -> Html Msg
-viewSidebarColumn model column =
+viewSidebarColumn : Column -> Html Msg
+viewSidebarColumn column =
     div [ class "column" ]
         [ div [ class "header" ]
               [ div []
@@ -302,7 +299,7 @@ viewSidebarColumn model column =
                   ]
               ]
         , div []
-            (List.map viewSidebarSection (List.filter (\section -> section.columnId == column.id) model.sections))
+            (List.map viewSidebarSection column.sections)
         ]
 
 
@@ -315,28 +312,28 @@ viewSidebarSection section =
 viewContent : Model -> Html Msg
 viewContent model =
     div [ class "content" ]
-        (List.map (viewSheet model) model.sheets)
+        (List.map viewSheet model.sheets)
 
 
-viewSheet : Model -> Sheet -> Html Msg
-viewSheet model sheet =
+viewSheet : Sheet -> Html Msg
+viewSheet sheet =
     div [ id sheet.id, class "sheet" ]
         [ div [ id sheet.container.id, style "height" "auto" ]
-              (List.map (viewRow model) (List.filter (\row -> row.sheetId == sheet.id) model.rows))
+              (List.map viewRow sheet.rows)
         ]
 
 
-viewRow : Model -> Row -> Html Msg
-viewRow model row =
+viewRow : Row -> Html Msg
+viewRow row =
     div [ id row.id, class "row" ]
-        (List.map (viewColumn model) (List.filter (\column -> column.rowId == row.id) model.columns))
+        (List.map viewColumn row.columns)
 
 
-viewColumn : Model -> Column -> Html Msg
-viewColumn model column =
+viewColumn : Column -> Html Msg
+viewColumn column =
     div [ class "column" ]
         [ div [ id column.id, class "column__content" ]
-              (List.map viewSection (List.filter (\section -> section.columnId == column.id) model.sections))
+              (List.map viewSection column.sections)
         ]
 
 
