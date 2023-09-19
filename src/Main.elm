@@ -192,6 +192,47 @@ update msg model =
                     maybeDimension result
                         |> Maybe.map (\dimension -> dimension.height)
                         |> Maybe.withDefault 0
+
+                -- Calculate what can be removed
+                dimensionHeight : Maybe Dimension -> Float
+                dimensionHeight maybeDimension1 =
+                    Maybe.map (\dimension -> dimension.height) maybeDimension1
+                        |> Maybe.withDefault 0
+
+                foldSectionsHeight : List Section -> Float
+                foldSectionsHeight sections =
+                    List.foldl (\section accum -> accum + (dimensionHeight section.dimension))  0 sections
+
+                calculateColumnHeights : List ( String, String, List Section ) -> List ( String, String, Float )
+                calculateColumnHeights tupleWithSections =
+                    List.map (\( rowId, columnId, sections ) -> ( rowId, columnId, (foldSectionsHeight sections) ) ) tupleWithSections
+
+                tupleOfRowIdColumnIdAndSections : List ( String, List Column ) -> List ( String, String, List Section)
+                tupleOfRowIdColumnIdAndSections rowIdColumns =
+                    List.map (\( rowId, columns ) -> List.map (\column -> ( rowId, column.id, column.sections )) columns ) rowIdColumns
+                        |> List.concat
+
+                tupleOfRowIdAndColumns : List Row -> List ( String, List Column )
+                tupleOfRowIdAndColumns rows =
+                    List.map (\row -> ( row.id, row.columns ) ) rows
+
+                listOfRows : Maybe Sheet -> List Row
+                listOfRows maybeSheet =
+                    Maybe.map (\sheet -> sheet.rows) maybeSheet
+                        |> Maybe.withDefault []
+
+                sheetById : Maybe Sheet
+                sheetById =
+                    List.filter (\sheet -> sheet.id == sheetId) model.sheets
+                        |> List.head
+
+                thatThingIAmDoing : List ( String, String, Float )
+                thatThingIAmDoing =
+                    sheetById
+                        |> listOfRows
+                        |> tupleOfRowIdAndColumns
+                        |> tupleOfRowIdColumnIdAndSections
+                        |> calculateColumnHeights
             in
             ( { model | exceedsHeight = containerHeight > sheetHeight }
             , Cmd.none
