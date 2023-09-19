@@ -91,7 +91,6 @@ init externalRandom =
       , sheets = [ (initSheet sheetUuid containerUuid) ]
       , exceedsHeight = False
       }
-
     , Task.attempt (UpdateSheetDimension sheetUuid)  (Browser.Dom.getElement sheetUuid)
     )
 
@@ -101,7 +100,7 @@ initSheet uuid containerUuid =
     { id = uuid
     , dimension = Nothing
     , container = (initSheetContainer containerUuid)
-    , rows = []
+    , rows = [ initRow ]
     }
 
 
@@ -112,68 +111,62 @@ initSheetContainer uuid =
     }
 
 
+initRow :  Row
+initRow =
+    { id = "row"
+    , columns = [ initLeftColumn, initRightColumn ]
+    }
+
+
+initLeftColumn : Column
+initLeftColumn =
+    { id = "leftColumn"
+    , sections =
+          [ (initSection "Name")
+          , (initSection "Header-Summary")
+          , (initSection "Summary")
+          , (initSection "Header-Contact")
+          , (initSection "Contact")
+          , (initSection "Header-Social")
+          , (initSection "Social")
+          ]
+    }
+
+
+initRightColumn : Column
+initRightColumn =
+    { id = "rightColumn"
+    , sections =
+          [ (initSection "Header-Work-Experiences")
+          , (initSection "Experiences")
+          , (initSection "Header-Professional-Skills")
+          , (initSection "Skills")
+          , (initSection "Header-Certifications")
+          , (initSection "Certifications")
+          ]
+    }
+
+
+initSection : String -> Section
+initSection id =
+    { id = id
+    , dimension = Nothing
+    }
+
+
 -- Update
 
 
 type Msg
-    = AddRow
-    | AddColumn String
-    | AddSection String
-    | UpdateSectionDimension String (Result Error Element)
-    | UpdateSheetDimension String (Result Error Element)
+    = UpdateSheetDimension String (Result Error Element)
     | UpdateSheetContainerDimension String (Result Error Element)
+    | AddSection String String String
+    | UpdateSectionDimension String String String String (Result Error Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AddRow ->
-            let
-                ( uuid, newSeed ) =
-                    createUuid model.currentSeed
-
-                addRowToLastSheet =
-                    List.reverse model.sheets
-                        |> List.head
-                        |> Maybe.map (\sheet -> { sheet | rows = sheet.rows ++ [ (createRow uuid)  ] })
-                        |> Maybe.map (\sheet -> (List.drop 1 model.sheets) ++ [ sheet ])
-                        |> Maybe.withDefault model.sheets
-                        
-            in
-            ( { model | sheets = addRowToLastSheet, currentSeed = newSeed }
-            , Cmd.none
-            )
-
-        AddColumn rowId ->
-            let
-                ( uuid, newSeed ) =
-                    createUuid model.currentSeed
-            in
-            ( { model | currentSeed = newSeed }
-            , Cmd.none
-            )
-
-        AddSection columnId ->
-            let
-                ( uuid, newSeed ) =
-                    createUuid model.currentSeed
-            in
-            ( { model | currentSeed = newSeed }
-            , Task.attempt (UpdateSectionDimension uuid) (Browser.Dom.getElement uuid)
-            )
-
-        UpdateSectionDimension sectionId result ->
-            let
-               updateSection section =
-                   if (sectionId == section.id) then
-                       { section | dimension = maybeDimension result }
-                   else
-                       section
-            in
-            ( model
-            , Task.attempt (UpdateSheetContainerDimension "") (Browser.Dom.getElement "sheetContainer")
-            )
-
         UpdateSheetDimension sheetId result ->
             let
                 updateSheet sheet =
@@ -204,26 +197,93 @@ update msg model =
             , Cmd.none
             )
 
+        AddSection sheetId rowId columnId ->
+            let
+                sheetContainerId : String
+                sheetContainerId =
+                    List.filter (\sheet -> sheet.id == sheetId) model.sheets
+                        |> List.head
+                        |> Maybe.map (\sheet -> sheet.container.id)
+                        |> Maybe.withDefault ""
 
-createUuid : Seed -> ( String, Seed )
-createUuid currentSeed =
-    step Uuid.uuidGenerator currentSeed
+                ( uuid, newSeed ) =
+                    createUuid model.currentSeed
+
+                createSection : Section
+                createSection =
+                    Section uuid Nothing
+
+                updateColumn : Column -> Column
+                updateColumn column =
+                    if (column.id == columnId) then
+                        { column | sections = column.sections ++ [ createSection ] }
+                    else
+                        column
+
+                updateRow : Row -> Row
+                updateRow row =
+                    if (row.id == rowId) then
+                        { row | columns = List.map updateColumn row.columns }
+                    else
+                        row
+
+                updateSheet : Sheet -> Sheet
+                updateSheet sheet =
+                    if (sheet.id == sheetId) then
+                        { sheet | rows = List.map updateRow sheet.rows }
+                    else
+                        sheet
+            in
+            ( { model | sheets = List.map updateSheet model.sheets,
+                    currentSeed = newSeed
+              }
+            , Task.attempt (UpdateSectionDimension sheetId rowId columnId uuid) (Browser.Dom.getElement uuid)
+            )
+
+        UpdateSectionDimension sheetId rowId columnId sectionId result ->
+            let
+                sheetContainerId : String
+                sheetContainerId =
+                    List.filter (\sheet -> sheet.id == sheetId) model.sheets
+                        |> List.head
+                        |> Maybe.map (\sheet -> sheet.container.id)
+                        |> Maybe.withDefault ""
+
+                updateSection : Section -> Section
+                updateSection section =
+                    if (section.id == sectionId) then
+                        { section | dimension = maybeDimension result }
+                    else
+                        section
+
+                updateColumn : Column -> Column
+                updateColumn column =
+                    if (column.id == columnId) then
+                        { column | sections = List.map updateSection column.sections }
+                    else 
+                        column
+                updateRow : Row -> Row
+                updateRow row =
+                    if (row.id == rowId) then
+                        { row | columns = List.map updateColumn row.columns }
+                    else
+                        row
+
+                updateSheet : Sheet -> Sheet
+                updateSheet sheet =
+                    if (sheet.id == sheetId) then
+                        { sheet | rows = List.map updateRow sheet.rows }
+                    else
+                        sheet
+            in
+            ( { model | sheets = List.map updateSheet model.sheets }
+            , Task.attempt (UpdateSheetContainerDimension sheetId) (Browser.Dom.getElement sheetContainerId)
+            )
+
+createUuid : Seed -> ( String, Seed )           
+createUuid seed =
+    step Uuid.uuidGenerator seed
         |> Tuple.mapFirst Uuid.toString
-
-
-createRow : String -> Row
-createRow uuid =
-    Row uuid []
-
-
-createColumn : String -> Column
-createColumn uuid =
-    Column uuid []
-
-
-createSection : String -> Section
-createSection uuid =
-    Section uuid Nothing
 
 
 maybeDimension : (Result Error Element) -> Maybe Dimension
@@ -254,48 +314,56 @@ viewSidebar model =
                 text "Elements exceed sheet height."
             else
                 text "Everything is looking good."
+
+        sheetIdAndRowsTuple : Sheet -> ( String, List Row )
+        sheetIdAndRowsTuple sheet =
+            ( sheet.id, sheet.rows )
+
+        sheetIdAndRowsExpand : ( String, List Row ) -> List ( String, Row )
+        sheetIdAndRowsExpand ( sheetId, rows ) =
+            List.map (\row -> ( sheetId, row ) ) rows
+
+        sheetIdAndRowToView : ( String, Row ) -> Html Msg
+        sheetIdAndRowToView ( sheetId, row ) =
+            viewSidebarRow sheetId row
     in
     div [ class "sidebar" ]
         [ div [ class "actions" ]
-              [ button [ onClick AddRow ]
-                    [ text "Add Row" ]
-              ]
+              []
         , div []
               [ displayText ]
         , div [ class "cards" ]
-              (List.map (\sheet -> sheet.rows) model.sheets
+              (List.map sheetIdAndRowsTuple model.sheets
+                   |> List.map sheetIdAndRowsExpand
                    |> List.concat
-                   |> List.map viewSidebarRow
+                   |> List.map sheetIdAndRowToView
               )
         ]
 
 
-viewSidebarRow : Row -> Html Msg
-viewSidebarRow row =
+viewSidebarRow : String -> Row -> Html Msg
+viewSidebarRow sheetId row =
     div [ class "card" ]
         [ div [ class "header" ]
-              [ div [] [ text ("Row - " ++ row.id)]
-              , div []
-                  [ button [ onClick (AddColumn row.id) ]
-                        [ text "Add Column" ]
-                  ]
-              ]
+              [ div [] [ text ("Row - " ++ row.id)] ]
         , div []
-            [ div [ ]
-                  (List.map viewSidebarColumn row.columns)
+            [ div []
+                  (List.map (viewSidebarColumn sheetId row.id) row.columns)
             ]
         ]
 
 
-viewSidebarColumn : Column -> Html Msg
-viewSidebarColumn column =
+viewSidebarColumn : String -> String -> Column -> Html Msg
+viewSidebarColumn sheetId rowId column =
     div [ class "column" ]
         [ div [ class "header" ]
               [ div []
                     [ text ("Column - " ++ column.id) ]
               , div []
-                  [ button [ onClick (AddSection column.id) ]
-                        [ text "Add Section" ]
+                  [ div []
+                        [ button [ onClick (AddSection sheetId rowId column.id) ]
+                              [ text "+ Section" ]
+                        ]
                   ]
               ]
         , div []
