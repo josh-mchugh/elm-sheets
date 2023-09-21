@@ -56,6 +56,7 @@ type alias SheetContainer =
 
 type alias Row =
     { id : String
+    , dimension: Maybe Dimension
     , columns : List Column
     }
 
@@ -114,6 +115,7 @@ initSheetContainer uuid =
 initRow :  Row
 initRow =
     { id = "row"
+    , dimension = Nothing
     , columns = [ initLeftColumn, initRightColumn ]
     }
 
@@ -159,6 +161,7 @@ initSection id =
 
 type Msg
     = UpdateSheetDimension String (Result Error Element)
+    | UpdateRowDimension String String (Result Error Element)
     | UpdateSheetContainerDimension String (Result Error Element)
     | AddSection String String String
     | UpdateSectionDimension String String String String (Result Error Element)
@@ -172,6 +175,27 @@ update msg model =
                 updateSheet sheet =
                     if (sheetId == sheet.id) then
                         { sheet | dimension = maybeDimension result }
+                    else
+                        sheet
+            in
+            ( { model | sheets = List.map updateSheet model.sheets }
+            , Cmd.none
+            )
+
+        UpdateRowDimension sheetId rowId result ->
+            let
+                updateRow : Row -> Row
+                updateRow row =
+                    if (row.id == rowId) then
+                        { row | dimension = maybeDimension result }
+                    else
+                        row
+
+
+                updateSheet : Sheet -> Sheet
+                updateSheet sheet =
+                    if (sheet.id == sheetId) then
+                        { sheet | rows = List.map updateRow sheet.rows }
                     else
                         sheet
             in
@@ -278,7 +302,7 @@ update msg model =
             ( { model | sheets = List.map updateSheet model.sheets,
                     currentSeed = newSeed
               }
-            , Task.attempt (UpdateSectionDimension sheetId rowId columnId uuid) (Browser.Dom.getElement uuid)
+            , Cmd.batch (updateDimensionCmds model) 
             )
 
         UpdateSectionDimension sheetId rowId columnId sectionId result ->
@@ -320,6 +344,45 @@ update msg model =
             ( { model | sheets = List.map updateSheet model.sheets }
             , Task.attempt (UpdateSheetContainerDimension sheetId) (Browser.Dom.getElement sheetContainerId)
             )
+
+
+updateDimensionCmds : Model -> List (Cmd Msg)
+updateDimensionCmds model =
+    let
+
+        createSheetCmd : String -> Cmd Msg
+        createSheetCmd sheetId =
+            Task.attempt (UpdateSheetDimension sheetId) (Browser.Dom.getElement sheetId) 
+
+
+        createSheetCmds : List Sheet -> List (Cmd Msg)
+        createSheetCmds sheets =
+            List.map (\sheet -> (createSheetCmd sheet.id) ) sheets
+
+
+        createSheetContainerCmd : String -> String -> Cmd Msg
+        createSheetContainerCmd sheetId sheetContainerId =
+            Task.attempt (UpdateSheetContainerDimension sheetId) (Browser.Dom.getElement sheetContainerId)
+
+
+        createSheetContainerCmds : List Sheet -> List (Cmd Msg)
+        createSheetContainerCmds sheets =
+            List.map (\sheet -> (createSheetContainerCmd sheet.id sheet.container.id) ) sheets
+
+
+        createRowCmd : ( String, String ) -> Cmd Msg
+        createRowCmd ( sheetId, rowId ) =
+            Task.attempt (UpdateRowDimension sheetId rowId) (Browser.Dom.getElement rowId)
+
+        createRowCmds : List Sheet -> List (Cmd Msg)
+        createRowCmds sheets =
+            List.map (\sheet -> ( sheet.id, sheet.rows) ) sheets
+                |> List.map (\( sheetId, rows ) -> List.map (\row -> ( sheetId, row.id )) rows)
+                |> List.concat
+                |> List.map createRowCmd 
+    in
+    (createSheetCmds model.sheets) ++ (createSheetContainerCmds model.sheets) ++ (createRowCmds model.sheets)
+   
 
 createUuid : Seed -> ( String, Seed )           
 createUuid seed =
