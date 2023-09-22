@@ -9,12 +9,14 @@ import Html exposing (section)
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (class, id, style)
 import Html.Events exposing (onClick)
+import Html.Parser
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline exposing (required)
+import Json.Decode.Pipeline exposing (required, optional)
 import Random exposing (Seed, initialSeed, step)
 import Task
 import Platform.Cmd as Cmd
 import Uuid
+import Html.Parser.Util
 
 
 
@@ -94,7 +96,9 @@ type alias LayoutColumn =
     }
 
 type alias LayoutSection =
-    { name : String }
+    { name : String
+    , template : String
+    }
 
 type alias Flags =
     { externalRandom : Int
@@ -660,8 +664,16 @@ viewSection section =
 
 viewLayoutSection : LayoutSection -> Html Msg
 viewLayoutSection section =
+    let
+        parseTemplate =
+            case Html.Parser.run section.template of
+                Ok result ->
+                    Html.Parser.Util.toVirtualDom result
+                Err err ->
+                    [ text section.name ]
+    in
     div [ id "section?" ]
-        [ text section.name ]
+        (parseTemplate)
 
 
 -- JSON ENCODE / DECODE
@@ -690,3 +702,4 @@ layoutSectionDecoder : Decoder LayoutSection
 layoutSectionDecoder =
     Decode.succeed LayoutSection
         |> required "name" Decode.string
+        |> optional "template" Decode.string ""

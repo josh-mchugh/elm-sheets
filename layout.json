@@ -6,7 +6,8 @@
           "class": "flex-auto w-4 pt-14 pl-8 bg-primary-dark text-white",
           "sections": [
             {
-              "name": "name"
+              "name": "name",
+              "template": "<h1>Hello World!</h1>"
             },
             {
               "name": "header"
