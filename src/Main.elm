@@ -9,6 +9,8 @@ import Html exposing (section)
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (class, id, style)
 import Html.Events exposing (onClick)
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (required)
 import Random exposing (Seed, initialSeed, step)
 import Task
 import Platform.Cmd as Cmd
@@ -19,7 +21,7 @@ import Uuid
 -- MAIN
 
 
-main : Program Int Model Msg
+main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
@@ -37,6 +39,7 @@ type alias Model =
     { currentSeed : Seed
     , sheets : List Sheet
     , exceedsHeight : Bool
+    , layout : Maybe Layout
     }
 
 
@@ -79,19 +82,47 @@ type alias Dimension =
     , width : Float
     }
 
+type alias Layout =
+    { rows : List LayoutRow }
 
-init : Int -> ( Model, Cmd Msg )
-init externalRandom =
+type alias LayoutRow =
+    { columns : List LayoutColumn}
+
+type alias LayoutColumn =
+    { class : String
+    , sections : List LayoutSection
+    }
+
+type alias LayoutSection =
+    { name : String }
+
+type alias Flags =
+    { externalRandom : Int
+    , layout : Decode.Value
+    }
+
+
+init : Flags -> ( Model, Cmd Msg )
+init flags =
     let
         ( sheetUuid, sheetSeed ) =
-            createUuid (initialSeed externalRandom)
+            createUuid (initialSeed flags.externalRandom)
 
         ( containerUuid, containerSeed ) =
             createUuid (sheetSeed)
+
+        parseLayout =
+            case Decode.decodeValue layoutDecoder flags.layout of
+                Ok layout ->
+                    Just layout
+                Err err ->
+                    Nothing
+
     in
     ( { currentSeed = containerSeed
       , sheets = [ (initSheet sheetUuid containerUuid) ]
       , exceedsHeight = False
+      , layout = parseLayout
       }
     , Task.attempt (UpdateSheetDimension sheetUuid)  (Browser.Dom.getElement sheetUuid)
     )
@@ -164,11 +195,11 @@ initSection id =
 
 type Msg
     = UpdateSheetDimension String (Result Error Element)
+    | UpdateSheetContainerDimension String (Result Error Element)
     | UpdateRowDimension String String (Result Error Element)
     | UpdateColumnDimension String String String (Result Error Element)
-    | UpdateSheetContainerDimension String (Result Error Element)
-    | AddSection String String String
     | UpdateSectionDimension String String String String (Result Error Element)
+    | AddSection String String String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -232,7 +263,53 @@ update msg model =
                     else
                         sheet
             in
-            ( model , Cmd.none )
+            ( { model | sheets = List.map updateSheet model.sheets }
+            , Cmd.none
+            )
+
+        UpdateSectionDimension sheetId rowId columnId sectionId result ->
+            let
+                sheetContainerId : String
+                sheetContainerId =
+                    List.filter (\sheet -> sheet.id == sheetId) model.sheets
+                        |> List.head
+                        |> Maybe.map (\sheet -> sheet.container.id)
+                        |> Maybe.withDefault ""
+
+
+                updateSection : Section -> Section
+                updateSection section =
+                    if (section.id == sectionId) then
+                        { section | dimension = maybeDimension result }
+                    else
+                        section
+
+
+                updateColumn : Column -> Column
+                updateColumn column =
+                    if (column.id == columnId) then
+                        { column | sections = List.map updateSection column.sections }
+                    else
+                        column
+
+
+                updateRow : Row -> Row
+                updateRow row =
+                    if (row.id == rowId) then
+                        { row | columns = List.map updateColumn row.columns }
+                    else
+                        row
+
+                updateSheet : Sheet -> Sheet
+                updateSheet sheet =
+                    if (sheet.id == sheetId) then
+                        { sheet | rows = List.map updateRow sheet.rows }
+                    else
+                        sheet
+            in
+            ( { model | sheets = List.map updateSheet model.sheets }
+            , Cmd.none
+            )
 
         UpdateSheetContainerDimension sheetId result ->
             let
@@ -336,46 +413,6 @@ update msg model =
             , Cmd.batch (updateDimensionCmds model) 
             )
 
-        UpdateSectionDimension sheetId rowId columnId sectionId result ->
-            let
-                sheetContainerId : String
-                sheetContainerId =
-                    List.filter (\sheet -> sheet.id == sheetId) model.sheets
-                        |> List.head
-                        |> Maybe.map (\sheet -> sheet.container.id)
-                        |> Maybe.withDefault ""
-
-                updateSection : Section -> Section
-                updateSection section =
-                    if (section.id == sectionId) then
-                        { section | dimension = maybeDimension result }
-                    else
-                        section
-
-                updateColumn : Column -> Column
-                updateColumn column =
-                    if (column.id == columnId) then
-                        { column | sections = List.map updateSection column.sections }
-                    else 
-                        column
-                updateRow : Row -> Row
-                updateRow row =
-                    if (row.id == rowId) then
-                        { row | columns = List.map updateColumn row.columns }
-                    else
-                        row
-
-                updateSheet : Sheet -> Sheet
-                updateSheet sheet =
-                    if (sheet.id == sheetId) then
-                        { sheet | rows = List.map updateRow sheet.rows }
-                    else
-                        sheet
-            in
-            ( { model | sheets = List.map updateSheet model.sheets }
-            , Task.attempt (UpdateSheetContainerDimension sheetId) (Browser.Dom.getElement sheetContainerId)
-            )
-
 
 updateDimensionCmds : Model -> List (Cmd Msg)
 updateDimensionCmds model =
@@ -422,16 +459,34 @@ updateDimensionCmds model =
         createColumnCmds : List Sheet -> List (Cmd Msg)
         createColumnCmds sheets =
             List.map (\sheet -> ( sheet.id, sheet.rows ) ) sheets
-                |> List.map (\( sheetId, rows )  -> List.map (\row -> (sheetId, row.id, row.columns) ) rows)
+                |> List.map (\( sheetId, rows ) -> List.map (\row -> ( sheetId, row.id, row.columns ) ) rows)
                 |> List.concat
-                |> List.map (\( sheetId, rowId, columns ) -> List.map (\column -> (sheetId, rowId, column.id) ) columns)
+                |> List.map (\( sheetId, rowId, columns ) -> List.map (\column -> ( sheetId, rowId, column.id ) ) columns)
                 |> List.concat
                 |> List.map createColumnCmd
+
+
+        createSectionCmd : ( String, (Result Error Element) ->  Msg ) -> Cmd Msg
+        createSectionCmd ( sectionId, msg ) =
+            Task.attempt msg (Browser.Dom.getElement sectionId)
+
+
+        createSectionCmds : List Sheet -> List (Cmd Msg)
+        createSectionCmds sheets =
+            List.map (\sheet -> ( (UpdateSectionDimension sheet.id), sheet.rows ) ) sheets
+                |> List.map (\( msg, rows ) -> List.map (\row -> ( (msg row.id), row.columns) ) rows)
+                |> List.concat
+                |> List.map (\( msg , columns ) -> List.map (\column -> ( (msg column.id), column.sections) ) columns)
+                |> List.concat
+                |> List.map (\( msg, sections ) -> List.map (\section -> ( section.id, (msg section.id) ) ) sections)
+                |> List.concat
+                |> List.map createSectionCmd
     in
     List.concat [ (createSheetCmds model.sheets)
                 , (createSheetContainerCmds model.sheets)
                 , (createRowCmds model.sheets)
                 , (createColumnCmds model.sheets)
+                , (createSectionCmds model.sheets)
                 ]
    
 
@@ -564,3 +619,32 @@ viewSection : Section -> Html Msg
 viewSection section =
     div [ id section.id ]
         [ text ("Section - " ++ section.id) ]
+
+
+
+-- JSON ENCODE / DECODE
+
+
+layoutDecoder : Decoder Layout
+layoutDecoder =
+    Decode.succeed Layout
+        |> required "rows" (Decode.list layoutRowDecoder)
+
+
+layoutRowDecoder : Decoder LayoutRow
+layoutRowDecoder =
+    Decode.succeed LayoutRow
+        |> required "columns" (Decode.list layoutColumnDecoder)
+
+
+layoutColumnDecoder : Decoder LayoutColumn
+layoutColumnDecoder =
+    Decode.succeed LayoutColumn
+        |> required "class" Decode.string
+        |> required "sections" (Decode.list layoutSectionDecoder)
+
+
+layoutSectionDecoder : Decoder LayoutSection
+layoutSectionDecoder =
+    Decode.succeed LayoutSection
+        |> required "name" Decode.string
