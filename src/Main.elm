@@ -276,7 +276,7 @@ update msg model =
                         |> Maybe.map (\sheet -> sheet.container.id)
                         |> Maybe.withDefault ""
 
-
+                           
                 updateSection : Section -> Section
                 updateSection section =
                     if (section.id == sectionId) then
@@ -512,7 +512,8 @@ view : Model -> Html Msg
 view model =
     div [ class "app" ]
         [ viewSidebar model
-        , viewContent model
+        --, viewContent model
+        , viewLayoutContent model
         ]
 
 
@@ -593,6 +594,12 @@ viewContent model =
         (List.map viewSheet model.sheets)
 
 
+viewLayoutContent : Model -> Html Msg
+viewLayoutContent model =
+    div [ class "content" ]
+        [ (viewLayoutSheet model) ]
+
+
 viewSheet : Sheet -> Html Msg
 viewSheet sheet =
     div [ id sheet.id, class "sheet" ]
@@ -601,10 +608,32 @@ viewSheet sheet =
         ]
 
 
+viewLayoutSheet : Model -> Html Msg
+viewLayoutSheet model =
+    let
+        layoutSheet =
+            case model.layout of
+                Just layout ->
+                    (List.map viewLayoutRow layout.rows)
+                Nothing ->
+                    []
+    in
+    div [ id "sheet1", class "sheet" ]
+        [ div [ id "sheet1Container", style "height" "auto" ]
+              (layoutSheet)
+        ]
+
+
 viewRow : Row -> Html Msg
 viewRow row =
     div [ id row.id, class "row" ]
         (List.map viewColumn row.columns)
+
+
+viewLayoutRow : LayoutRow -> Html Msg
+viewLayoutRow row =
+    div [ id "row?", class "row" ]
+        (List.map viewLayoutColumn row.columns)
 
 
 viewColumn : Column -> Html Msg
@@ -615,11 +644,24 @@ viewColumn column =
         ]
 
 
+viewLayoutColumn : LayoutColumn -> Html Msg
+viewLayoutColumn column =
+    div [ class "column", class column.class ]
+        [ div [ id "column?", class "column__content" ]
+              (List.map viewLayoutSection column.sections)
+        ]
+
+
 viewSection : Section -> Html Msg
 viewSection section =
     div [ id section.id ]
         [ text ("Section - " ++ section.id) ]
 
+
+viewLayoutSection : LayoutSection -> Html Msg
+viewLayoutSection section =
+    div [ id "section?" ]
+        [ text section.name ]
 
 
 -- JSON ENCODE / DECODE
