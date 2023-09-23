@@ -1,13 +1,14 @@
 {
+  "class": "sheet--full-height",
   "rows": [
     {
       "columns": [
         {
-          "class": "flex-auto w-4 pt-14 pl-8 bg-primary-dark text-white",
+          "class": "column__left",
           "sections": [
             {
               "name": "name",
-              "template": "<h1>Hello World!</h1>"
+              "template": "<h1>Hello, {{name}}!</h1>"
             },
             {
               "name": "header"
@@ -30,7 +31,7 @@
           ]
         },
         {
-          "class": "flex-auto w-64 px-7 my-16",
+          "class": "column__right",
           "sections": [
             {
               "name": "header"

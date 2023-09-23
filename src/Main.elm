@@ -5,6 +5,7 @@ module Main exposing (main)
 
 import Browser
 import Browser.Dom exposing (Element, Error)
+import Handlebars
 import Html exposing (section)
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (class, id, style)
@@ -85,7 +86,9 @@ type alias Dimension =
     }
 
 type alias Layout =
-    { rows : List LayoutRow }
+    { class : String
+    , rows : List LayoutRow
+    }
 
 type alias LayoutRow =
     { columns : List LayoutColumn}
@@ -615,6 +618,13 @@ viewSheet sheet =
 viewLayoutSheet : Model -> Html Msg
 viewLayoutSheet model =
     let
+        layoutClass =
+            case model.layout of
+                Just layout ->
+                    layout.class
+                Nothing ->
+                    ""
+
         layoutSheet =
             case model.layout of
                 Just layout ->
@@ -623,8 +633,14 @@ viewLayoutSheet model =
                     []
     in
     div [ id "sheet1", class "sheet" ]
-        [ div [ id "sheet1Container", style "height" "auto" ]
-              (layoutSheet)
+        [ div [ class layoutClass ]
+              [
+               div [ id "sheet1Container"
+                   , style "height" "auto"
+                   , style "width" "100%"
+                   ]
+                   (layoutSheet)
+              ]
         ]
 
 
@@ -665,8 +681,29 @@ viewSection section =
 viewLayoutSection : LayoutSection -> Html Msg
 viewLayoutSection section =
     let
+        handlebarValues : (Result Decode.Error Decode.Value)
+        handlebarValues =
+            "{\"name\": \"Tester\"}" |> Decode.decodeString Decode.value
+
+        createTemplate : String
+        createTemplate =
+            let
+                handleCompile value=
+                    Handlebars.compile Handlebars.defaultConfig section.template value
+            in
+            case handlebarValues of
+                Ok value ->
+                    case (handleCompile value) of
+                        Ok template ->
+                            template
+                        Err err ->
+                            Handlebars.errorToString err
+                Err err ->
+                    Decode.errorToString err
+
+
         parseTemplate =
-            case Html.Parser.run section.template of
+            case Html.Parser.run createTemplate of
                 Ok result ->
                     Html.Parser.Util.toVirtualDom result
                 Err err ->
@@ -682,6 +719,7 @@ viewLayoutSection section =
 layoutDecoder : Decoder Layout
 layoutDecoder =
     Decode.succeed Layout
+        |> required "class" Decode.string
         |> required "rows" (Decode.list layoutRowDecoder)
 
 

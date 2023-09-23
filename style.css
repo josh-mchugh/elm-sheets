@@ -2,10 +2,9 @@
 @import 'sanitize.css/forms.css';
 @import 'sanitize.css/typography.css';
 
-.app {
-    display: flex;
-    flex-wrap: wrap;
-    height: 100vh;
+:root{
+    --primary: #11212f;
+    --white: #fff;
 }
 
 .sidebar {
@@ -72,29 +71,12 @@
     flex-direction: column;
 }
 
+
 .content .column__content {
     height: auto;
 }
 
-.sheet {
-    width: 210mm;
-    height: 296mm;
-    overflow: hidden;
-    box-sizing: border-box;
-    page-break-after: always;
-}
-
-@media screen {
-    .content {
-        background: #e0e0e0;
-    }
-
-    .sheet {
-        background: white;
-        background-shadow: 0 0.5mm 2mm rgba(0, 0, 0, .3);
-        margin: 0 auto 3rem auto;;
-    }
-}
+/* Button Styles */
 
 button {
   border: 2px solid #1A1A1A;
@@ -116,4 +98,72 @@ button:disabled {
 button:hover {
   color: #fff;
   background-color: #1A1A1A;
+}
+
+/* App Main Content */
+.app {
+    display: flex;
+    flex-wrap: wrap;
+    height: 100vh;
+    font: 'Roboto';
+}
+
+/* Sheet Styles */
+
+.sheet {
+    width: 210mm;
+    height: 296mm;
+    overflow: hidden;
+    box-sizing: border-box;
+    page-break-after: always;
+}
+
+/* flex h-full font-['Roboto'] text-gray-700 */
+.sheet--full-height {
+    display: flex;
+    height: 100%;
+}
+
+@media screen {
+    .content {
+        background: #e0e0e0;
+    }
+
+    .sheet {
+        background: white;
+        background-shadow: 0 0.5mm 2mm rgba(0, 0, 0, .3);
+        margin: 0 auto 3rem auto;;
+    }
+}
+
+.row {
+    display: flex;
+    height: 100%;
+}
+
+/* Column Styles */
+
+/* Left Column
+
+flex-auto w-4 pt-14 pl-8 bg-primary-dark text-white
+
+*/
+.column__left {
+    flex: 1 1 auto;
+    width: 10rem;
+    padding: 3.5rem 0 0 2rem;
+    background-color: var(--primary);
+    color: var(--white);
+}
+
+/* Right Column
+
+flex-auto w-64 px-7 my-16
+
+*/
+.column__right {
+    flex: 1 1 auto;
+    width: 16rem;
+    margin: 4rem 0 4rem 0;
+    padding: 0 1.75rem 0 1.75rem;
 }
