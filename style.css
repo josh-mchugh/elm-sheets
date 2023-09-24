@@ -214,7 +214,8 @@ flex-auto w-64 px-7 my-16
 }
 
 .section__header--summary,
-.section__header--contact {
+.section__header--contact,
+.section__header--social {
     margin-top: 2.5rem;
 }
 
@@ -294,4 +295,41 @@ flex-auto w-64 px-7 my-16
 .section__contact .list__item_text--email {
     color: var(--white);
     text-decoration-line: none;
+}
+
+/* Section - Social */
+/* flex mt-1 ml-4 */
+.section__social {
+    display: flex;
+    margin: 0.25rem 0 0 1rem;
+}
+
+/* list-none text-sm */
+.section__social .list {
+    list-style-type: none;
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+/* mt-3 */
+.section__social .list__item {
+    margin-top: 0.75rem;
+}
+
+/* text-accent */
+.section__social .social__icon {
+    color: var(--accent);
+}
+
+/* ml-2 */
+.section__social .social__name {
+    margin-left: 0.5rem;
+}
+
+/* text-xs */
+.section__social .social__link {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    text-decoration-line: none;
+    color: var(--white);
 }
