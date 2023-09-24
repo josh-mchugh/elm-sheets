@@ -8,19 +8,15 @@
           "sections": [
             {
               "name": "name",
-              "template": "<h1>Hello, {{name}}!</h1>"
+              "template": "<div class=\"section__name\"><div class=\"name\">John Doe</div><div class=\"title\">Web and Graphic Designer</div></div>"
             },
             {
-              "name": "header"
+              "name": "summary",
+              "template": "<div class=\"section__header section__header--summary\"><div class=\"title\">Summary</div><div class=\"divider\"><div class=\"divider__container\"><div class=\"divider__line divider__line--white\"></div></div></div></div><div class=\"section__summary\"><div class=\"summary\">Rock Star/Ninja can you ballpark the cost per unit for me, for touch base disband the squad but rehydrate as needed sacred cow.</div></div>"
             },
             {
-              "name": "summary"
-            },
-            {
-              "name": "header"
-            },
-            {
-              "name": "contact"
+              "name": "contact",
+              "template": "<div class=\"section__header section__header--contact\"><div class=\" title\">Contact</div><div class=\"divider\"><div class=\"divider__line divider__line--white\"></div></div></div><div class=\"section__contact\"><ul class=\"list\"><li class=\"list__item\"><i class=\"fa-solid fa-phone list__item_icon\"></i><span class=\"list__item_text\">(123) 456-7899</span></li><li class=\"list__item\"><i class=\"fa-solid fa-envelope list__item_icon\"></i><a class=\"list__item_text list__item_text--email\" href=\"info@youremail.com\">info@youremail.com</a></li><li class=\"list__item\"><i class=\"fa-solid fa-location-dot list__item_icon\"></i><span class=\"list__item_text\">New York, New York</span></li></ul></div>"
             },
             {
               "name": "header"
