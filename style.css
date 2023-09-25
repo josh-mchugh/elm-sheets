@@ -225,7 +225,8 @@ flex-auto w-64 px-7 my-16
     margin-top: 3rem;
 }
 
-.section__header--skill {
+.section__header--skill,
+.section__header--certification {
     margin-top: 1.5rem;
 }
 
@@ -393,7 +394,7 @@ flex-auto w-64 px-7 my-16
 .section__experience .skill_list {
     display: flex;
     flex-wrap: wrap;
-    margin: 0.25rem 0 0 1rem;
+    margin: 0.25rem 0 0 1.75rem;
 }
 
 /* mt-1 mr-1 */
@@ -451,4 +452,34 @@ flex-auto w-64 px-7 my-16
 
 .section__skill .block--active {
     background-color: var(--accent);
+}
+
+/* Section - Certification */
+/* flex flex-col mt-6 */
+.section__certification {
+    display: flex;
+    flex-direction: column;
+    margin-top: 1.5rem;
+}
+
+/* flex flex-auto w-full text-xs */
+.section__certification .certification {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    width: 100%;
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+/* flex justify-between */
+.section__certification .header {
+    display: flex;
+    justify-content: space-between;
+}
+
+/* font-bold text-accent */
+.section__certification .title {
+    font-weight: 700;
+    color: var(--accent);
 }
