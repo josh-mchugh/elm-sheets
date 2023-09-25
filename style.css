@@ -10,6 +10,7 @@
     --primary: rgb(17, 33, 47);
     --accent: rgb(43, 176, 225);
     --white: rgb(255, 255, 255);
+    --gray-300: rgb(209,213, 219);
     --gray-700: rgb(55, 65, 81);
 }
 
@@ -216,9 +217,16 @@ flex-auto w-64 px-7 my-16
 }
 
 .section__header--summary,
-.section__header--contact,
-.section__header--social {
+.section__header--contact {
     margin-top: 2.5rem;
+}
+
+.section__header--social {
+    margin-top: 3rem;
+}
+
+.section__header--skill {
+    margin-top: 1.5rem;
 }
 
 /* flex-auto font-bold whitespace-nowrap */
@@ -399,4 +407,48 @@ flex-auto w-64 px-7 my-16
     padding: 0.125rem 0.375rem 0.125rem 0.375rem;
     background-color: var(--primary);
     color: var(--white);
+}
+
+/* Section - Skills */
+/* grid grid-cols-1 gap-y-3 mt-6 mx-4 text-xs */
+.section__skill {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    row-gap: 0.75rem;
+    margin: 1.5rem 1rem 0 1rem;
+    font-size: 0.75rem;
+}
+
+/* grid grid-cols-2 gap-x-16 place-content-between */
+.section__skill .container {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 4rem;
+    place-content: space-between;
+}
+
+/* grid grid-cols-2 place-content-between */
+.section__skill .item {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    place-content: space-between;
+}
+
+/* grid grid-cols-5 w-24 content-center */
+.section__skill .rating {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 6rem;
+    align-content: center;
+}
+
+/* w-2 h-2 */
+.section__skill .block {
+    width: .5rem;
+    height: .5rem;
+    background-color: var(--gray-300);
+}
+
+.section__skill .block--active {
+    background-color: var(--accent);
 }
