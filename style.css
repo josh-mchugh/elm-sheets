@@ -207,7 +207,8 @@ flex-auto w-64 px-7 my-16
 
 /* text-sm tracking-wider */
 .section__name .title {
-    font-size: .75rem;
+    font-size: .875rem;
+    line-height: 1.25rem;
     letter-spacing: 0.05rem;
 }
 

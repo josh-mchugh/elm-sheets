@@ -43,6 +43,7 @@ type alias Model =
     , sheets : List Sheet
     , exceedsHeight : Bool
     , layout : Maybe Layout
+    , resume : Maybe Resume
     }
 
 
@@ -85,27 +86,78 @@ type alias Dimension =
     , width : Float
     }
 
+
 type alias Layout =
     { class : String
     , rows : List LayoutRow
     }
 
+
 type alias LayoutRow =
     { columns : List LayoutColumn}
+
 
 type alias LayoutColumn =
     { class : String
     , sections : List LayoutSection
     }
 
+
 type alias LayoutSection =
     { name : String
     , template : String
     }
 
+
 type alias Flags =
     { externalRandom : Int
     , layout : Decode.Value
+    , resume : Decode.Value
+    }
+
+
+type alias Resume =
+    { name : String
+    , title : String
+    , summary : String
+    , phone : String
+    , email : String
+    , location : String
+    , socials : List Social
+    , experiences : List Experience
+    , skills : List Skill
+    , certifications : List Certification
+    }
+
+
+type alias Social =
+    { name : String
+    , icon : String
+    , url : String
+    }
+
+
+type alias Experience =
+    { organization : String
+    , title : String
+    , duration : String
+    , location : String
+    , descriptions : List String
+    , skills : List String
+    }
+
+
+type alias Skill =
+    { name : String
+    , proficiency : Int
+    }
+
+
+type alias Certification =
+    { title : String
+    , organization : String
+    , location : String
+    , year : String
     }
 
 
@@ -125,11 +177,19 @@ init flags =
                 Err err ->
                     Nothing
 
+
+        parseResume =
+            case Decode.decodeValue resumeDecoder flags.resume of
+                Ok resume ->
+                    Just resume
+                Err err ->
+                    Nothing
     in
     ( { currentSeed = containerSeed
       , sheets = [ (initSheet sheetUuid containerUuid) ]
       , exceedsHeight = False
       , layout = parseLayout
+      , resume = parseResume
       }
     , Task.attempt (UpdateSheetDimension sheetUuid)  (Browser.Dom.getElement sheetUuid)
     )
@@ -741,3 +801,53 @@ layoutSectionDecoder =
     Decode.succeed LayoutSection
         |> required "name" Decode.string
         |> optional "template" Decode.string ""
+
+
+resumeDecoder : Decoder Resume
+resumeDecoder =
+    Decode.succeed Resume
+        |> optional "name" Decode.string ""
+        |> optional "title" Decode.string ""
+        |> optional "summary" Decode.string ""
+        |> optional "phone" Decode.string ""
+        |> optional "email" Decode.string ""
+        |> optional "location" Decode.string ""
+        |> optional "socials" (Decode.list resumeSocialDecoder) []
+        |> optional "experiences" (Decode.list resumeExperienceDecoder) []
+        |> optional "skills" (Decode.list resumeSkillDecoder) []
+        |> optional "certifications" (Decode.list resumeCertificationDecoder) []
+
+
+resumeSocialDecoder : Decoder Social
+resumeSocialDecoder =
+    Decode.succeed Social
+        |> optional "name" Decode.string ""
+        |> optional "icon" Decode.string ""
+        |> optional "url" Decode.string ""
+
+
+resumeExperienceDecoder : Decoder Experience
+resumeExperienceDecoder =
+    Decode.succeed Experience
+        |> optional "organization" Decode.string ""
+        |> optional "title" Decode.string ""
+        |> optional "duration" Decode.string ""
+        |> optional "location" Decode.string ""
+        |> optional "descriptions" (Decode.list Decode.string) []
+        |> optional "skills" (Decode.list Decode.string) []
+
+
+resumeSkillDecoder : Decoder Skill
+resumeSkillDecoder =
+    Decode.succeed Skill
+        |> optional "name" Decode.string ""
+        |> optional "proficiency" Decode.int 0
+
+
+resumeCertificationDecoder : Decoder Certification
+resumeCertificationDecoder =
+    Decode.succeed Certification
+        |> optional "title" Decode.string ""
+        |> optional "organization" Decode.string ""
+        |> optional "location" Decode.string ""
+        |> optional "year" Decode.string ""
