@@ -13,6 +13,7 @@ import Html.Events exposing (onClick)
 import Html.Parser
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
+import Json.Encode as Encode
 import Random exposing (Seed, initialSeed, step)
 import Task
 import Platform.Cmd as Cmd
@@ -94,7 +95,7 @@ type alias Layout =
 
 
 type alias LayoutRow =
-    { columns : List LayoutColumn}
+    { columns : List LayoutColumn }
 
 
 type alias LayoutColumn =
@@ -105,8 +106,19 @@ type alias LayoutColumn =
 
 type alias LayoutSection =
     { name : String
+    , type_ : SectionType
     , template : String
     }
+
+
+type SectionType
+    = SectionName
+    | SectionSummary
+    | SectionContact
+    | SectionSocial
+    | SectionExperience
+    | SectionSkill
+    | SectionCertification
 
 
 type alias Flags =
@@ -254,6 +266,21 @@ initSection : String -> Section
 initSection id =
     { id = id
     , dimension = Nothing
+    }
+
+
+emptyResume : Resume
+emptyResume =
+    { name = ""
+    , title = ""
+    , summary = ""
+    , phone = ""
+    , email = ""
+    , location = ""
+    , socials = []
+    , experiences = []
+    , skills = []
+    , certifications = []
     }
 
 
@@ -688,9 +715,16 @@ viewLayoutSheet model =
         layoutSheet =
             case model.layout of
                 Just layout ->
-                    (List.map viewLayoutRow layout.rows)
+                    (List.map (viewLayoutRow resumeData) layout.rows)
                 Nothing ->
                     []
+
+        resumeData =
+            case model.resume of
+                Just resume ->
+                    resume
+                Nothing ->
+                    emptyResume
     in
     div [ id "sheet1", class "sheet" ]
         [ div [ class layoutClass ]
@@ -710,10 +744,10 @@ viewRow row =
         (List.map viewColumn row.columns)
 
 
-viewLayoutRow : LayoutRow -> Html Msg
-viewLayoutRow row =
+viewLayoutRow : Resume -> LayoutRow -> Html Msg
+viewLayoutRow resume row =
     div [ id "row?", class "row" ]
-        (List.map viewLayoutColumn row.columns)
+        (List.map (viewLayoutColumn resume) row.columns)
 
 
 viewColumn : Column -> Html Msg
@@ -724,11 +758,11 @@ viewColumn column =
         ]
 
 
-viewLayoutColumn : LayoutColumn -> Html Msg
-viewLayoutColumn column =
+viewLayoutColumn : Resume -> LayoutColumn -> Html Msg
+viewLayoutColumn resume column =
     div [ class "column", class column.class ]
         [ div [ id "column?", class "column__content" ]
-              (List.map viewLayoutSection column.sections)
+              (List.map (viewLayoutSection resume) column.sections)
         ]
 
 
@@ -738,42 +772,76 @@ viewSection section =
         [ text ("Section - " ++ section.id) ]
 
 
-viewLayoutSection : LayoutSection -> Html Msg
-viewLayoutSection section =
+viewLayoutSection : Resume -> LayoutSection -> Html Msg
+viewLayoutSection resume section =
     let
-        handlebarValues : (Result Decode.Error Decode.Value)
+        handlebarValues : Encode.Value
         handlebarValues =
-            "{\"name\": \"Tester\"}" |> Decode.decodeString Decode.value
+            case section.type_ of
+                SectionName ->
+                    Encode.object
+                        [ ( "name", Encode.string resume.name )
+                        , ( "title", Encode.string resume.title )
+                        ]
 
-        createTemplate : String
-        createTemplate =
-            let
-                handleCompile value=
-                    Handlebars.compile Handlebars.defaultConfig section.template value
-            in
-            case handlebarValues of
-                Ok value ->
-                    case (handleCompile value) of
-                        Ok template ->
-                            template
-                        Err err ->
-                            Handlebars.errorToString err
-                Err err ->
-                    Decode.errorToString err
+                SectionSummary ->
+                    Encode.object
+                        [ ( "summary", Encode.string resume.summary ) ]
+
+                SectionContact ->
+                    Encode.object
+                        [ ( "phone", Encode.string resume.phone )
+                        , ( "email", Encode.string resume.email )
+                        , ( "location", Encode.string resume.location )
+                        ]
+
+                SectionSocial ->
+                    Encode.object
+                        [ ( "socials", (Encode.list encodeSocial resume.socials) ) ]
+
+                SectionExperience ->
+                    Encode.object []
+
+                SectionSkill ->
+                    Encode.object []
+
+                SectionCertification ->
+                    Encode.object []
+
+
+        handleCompile value=
+            Handlebars.compile Handlebars.defaultConfig section.template value
 
 
         parseTemplate =
-            case Html.Parser.run createTemplate of
-                Ok result ->
-                    Html.Parser.Util.toVirtualDom result
-                Err err ->
-                    [ text section.name ]
+            case (handleCompile handlebarValues) of
+                    Ok template ->
+                        case Html.Parser.run template of
+                            Ok result ->
+                                Html.Parser.Util.toVirtualDom result
+                            Err err ->
+                                [ text template  ]
+                    Err err ->
+                        [ text (Handlebars.errorToString err) ]
+
     in
     div [ id "section?" ]
         (parseTemplate)
 
 
--- JSON ENCODE / DECODE
+-- JSON ENCODE
+
+
+encodeSocial : Social -> Encode.Value
+encodeSocial social =
+    Encode.object
+        [ ( "name", Encode.string social.name )
+        , ( "icon", Encode.string social.icon )
+        , ( "url", Encode.string social.url )
+        ]
+
+
+-- JSON DECODE
 
 
 layoutDecoder : Decoder Layout
@@ -800,7 +868,35 @@ layoutSectionDecoder : Decoder LayoutSection
 layoutSectionDecoder =
     Decode.succeed LayoutSection
         |> required "name" Decode.string
+        |> required "type" sectionTypeDecoder
         |> optional "template" Decode.string ""
+
+
+sectionTypeDecoder : Decoder SectionType
+sectionTypeDecoder =
+    let
+        transformString: String -> Decoder SectionType
+        transformString type_ =
+            case type_ of
+                "NAME" ->
+                    Decode.succeed SectionName
+                "SUMMARY" ->
+                    Decode.succeed SectionSummary
+                "CONTACT" ->
+                    Decode.succeed SectionContact
+                "SOCIAL" ->
+                    Decode.succeed SectionSocial
+                "EXPERIENCE" ->
+                    Decode.succeed SectionExperience
+                "SKILL" ->
+                    Decode.succeed SectionSkill
+                "CERTIFICATION" ->
+                    Decode.succeed SectionCertification
+                _ ->
+                    Decode.fail("Unknown Section Type: " ++ type_)
+    in
+    Decode.string
+        |> Decode.andThen transformString
 
 
 resumeDecoder : Decoder Resume
